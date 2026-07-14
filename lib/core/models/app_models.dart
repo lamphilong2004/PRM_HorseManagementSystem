@@ -115,7 +115,7 @@ class Race {
     final tournament = json['tournamentId'];
     return Race(
       id: _stringValue(json['_id'] ?? json['id']),
-      tournamentId: tournament is Map<String, dynamic>
+      tournamentId: tournament is Map
           ? _stringValue(tournament['_id'])
           : _stringValue(tournament),
       name: _stringValue(json['name']),
@@ -130,7 +130,7 @@ class Race {
     final tournament = json['tournamentId'];
     return Race(
       id: _stringValue(json['_id'] ?? json['id']),
-      tournamentId: tournament is Map<String, dynamic>
+      tournamentId: tournament is Map
           ? _stringValue(tournament['_id'] ?? tournament['id'])
           : _stringValue(tournament),
       name: _stringValue(json['name']),
@@ -173,10 +173,10 @@ class Invite {
     final horse = json['horseId'];
     return Invite(
       id: _stringValue(json['_id'] ?? json['id']),
-      horseId: horse is Map<String, dynamic>
+      horseId: horse is Map
           ? _stringValue(horse['_id'] ?? horse['id'])
           : _stringValue(horse),
-      horseName: horse is Map<String, dynamic>
+      horseName: horse is Map
           ? _stringValue(horse['name'])
           : _stringValue(json['horseName'] ?? horse),
       status: _stringValue(json['status']),
@@ -215,16 +215,16 @@ class Prediction {
 
     return Prediction(
       id: _stringValue(json['_id'] ?? json['id']),
-      raceId: race is Map<String, dynamic>
+      raceId: race is Map
           ? _stringValue(race['_id'])
           : _stringValue(race),
-      pickedHorseName: horse is Map<String, dynamic>
+      pickedHorseName: horse is Map
           ? _stringValue(horse['name'])
           : '',
       status: mappedStatus,
       betAmount: json['betAmount'] is num ? json['betAmount'] as num : null,
       prizeAmount: json['prizeAmount'] is num ? json['prizeAmount'] as num : (json['payout'] is num ? json['payout'] as num : null),
-      raceName: race is Map<String, dynamic> ? _stringValue(race['name']) : '',
+      raceName: race is Map ? _stringValue(race['name']) : '',
       createdAt: _stringValue(json['createdAt']),
     );
   }
@@ -247,14 +247,14 @@ class RaceHorse {
     final horse = json['horse'];
     final horseId = json['horseId'];
     return RaceHorse(
-      id: horse is Map<String, dynamic>
+      id: horse is Map
           ? _stringValue(horse['_id'])
-          : horseId is Map<String, dynamic>
+          : horseId is Map
           ? _stringValue(horseId['_id'])
           : '',
-      name: horse is Map<String, dynamic>
+      name: horse is Map
           ? _stringValue(horse['name'])
-          : horseId is Map<String, dynamic>
+          : horseId is Map
           ? _stringValue(horseId['name'])
           : '',
       registrationId: _stringValue(json['registrationId'] ?? json['_id'] ?? json['id']),

@@ -218,10 +218,12 @@ class _HomeScreenState extends State<HomeScreen> {
       final selectedItem = navItems[_selectedIndex];
       final childWidget = _buildChildScreen(selectedItem.routeName);
 
-      return Scaffold(
-        backgroundColor: Colors.transparent,
-        body: childWidget,
-        bottomNavigationBar: _buildBottomNav(context, navItems),
+      return AppBackground(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: childWidget,
+          bottomNavigationBar: _buildBottomNav(context, navItems),
+        ),
       );
     }
   }

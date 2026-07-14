@@ -60,13 +60,20 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
     setState(() => _loading = true);
     try {
       final races = await widget.api.getRaces();
+      debugPrint('Loaded total races from API: ${races.length}');
+      for (var r in races) {
+        debugPrint('Race name: ${r.name}, status: ${r.status}');
+      }
       if (mounted) {
         setState(() {
           _races = races.where((r) => r.status.toUpperCase() == 'ONGOING' || r.status.toUpperCase() == 'RUNNING' || r.status.toUpperCase() == 'LIVE').toList();
+          debugPrint('Filtered live races count: ${_races.length}');
           _loading = false;
         });
       }
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('Error fetching races: $e');
+      debugPrint('Stacktrace: $stack');
       if (mounted) {
         setState(() => _loading = false);
       }

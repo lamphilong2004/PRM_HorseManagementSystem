@@ -53,8 +53,8 @@ class ApiService {
     ).map(Tournament.fromApi).toList();
   }
 
-  Future<List<Race>> getRaces() async {
-    final response = await _client.get('/races');
+  Future<List<Race>> getRaces({int limit = 1000}) async {
+    final response = await _client.get('/races?limit=$limit');
     return _extractList(response.data, 'races').map(Race.fromApi).toList();
   }
 
@@ -87,7 +87,7 @@ class ApiService {
   }
 
   Future<List<Prediction>> getPredictions() async {
-    final response = await _client.get('/prediction/me/predictions');
+    final response = await _client.get('/me/predictions');
     return _extractList(
       response.data,
       'predictions',
@@ -100,6 +100,12 @@ class ApiService {
     return Map<String, dynamic>.from(
       (data is Map && data.containsKey('data')) ? data['data'] : data
     );
+  }
+
+  Future<Map<String, dynamic>> resetPoints() async {
+    final response = await _client.post('/auth/reset-points', {});
+    final data = response.data;
+    return Map<String, dynamic>.from(data as Map);
   }
 
   Future<List<AdminUser>> getAdminUsers() async {
@@ -158,19 +164,19 @@ class ApiService {
     }
     
     final response = await _client.post(
-      '/prediction/races/$raceId/predictions',
+      '/races/$raceId/predictions',
       body,
     );
     return response.data;
   }
 
   Future<dynamic> closePredictions(String raceId) async {
-    final response = await _client.patch('/prediction/admin/races/$raceId/close');
+    final response = await _client.post('/admin/races/$raceId/predictions/close', {});
     return response.data;
   }
 
   Future<dynamic> settlePredictions(String raceId) async {
-    final response = await _client.post('/prediction/admin/races/$raceId/settle', {});
+    final response = await _client.post('/admin/races/$raceId/predictions/settle', {});
     return response.data;
   }
 
@@ -188,7 +194,7 @@ class ApiService {
   }
 
   Future<List<Map<String, dynamic>>> getNotifications() async {
-    final response = await _client.get('/prediction/me/notifications');
+    final response = await _client.get('/me/notifications');
     final data = response.data;
     final list = data is Map<String, dynamic>
         ? data['notifications'] ?? data
@@ -210,7 +216,7 @@ class ApiService {
   }
 
   List<Map<String, dynamic>> _extractList(dynamic data, String? envelopeKey) {
-    final raw = data is Map<String, dynamic> && envelopeKey != null
+    final raw = data is Map && envelopeKey != null
         ? data[envelopeKey] ?? data
         : data;
     if (raw is! List) return [];

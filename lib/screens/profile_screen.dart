@@ -32,22 +32,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _fetchProfile() async {
     setState(() => _loading = true);
+    
+    // Fetch profile
     try {
-      final results = await Future.wait([
-        widget.auth.apiService.getMyProfile(),
-        widget.auth.apiService.getPredictions(),
-        widget.walletService.init(),
-      ]);
+      final profileData = await widget.auth.apiService.getMyProfile();
       if (mounted) {
         setState(() {
-          final profileData = results[0] as Map<String, dynamic>;
           _profile = profileData['user'] ?? profileData;
-          _predictions = results[1] as List<Prediction>;
-          _loading = false;
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _loading = false);
+      debugPrint('Error fetching profile: $e');
+    }
+
+    // Fetch predictions
+    try {
+      final predictions = await widget.auth.apiService.getPredictions();
+      if (mounted) {
+        setState(() {
+          _predictions = predictions;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching predictions: $e');
+    }
+
+    // Init wallet
+    try {
+      await widget.walletService.init();
+    } catch (e) {
+      debugPrint('Error init wallet: $e');
+    }
+
+    if (mounted) {
+      setState(() => _loading = false);
     }
   }
 
@@ -70,7 +88,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final displayName = _profile?['fullName'] ?? _profile?['name'] ?? user?.name ?? 'Khán giả';
     final email = _profile?['email'] ?? user?.email ?? 'Chưa cập nhật';
     final phone = _profile?['phone'] ?? 'Chưa cập nhật';
-    final status = _profile?['status'] ?? 'ACTIVE';
 
     int won = 0;
     int lost = 0;
@@ -183,8 +200,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: 'Thông tin cá nhân',
               children: [
                 _buildInfoRow(context, Icons.email_outlined, email),
-                _buildInfoRow(context, Icons.phone_outlined, phone),
-                _buildInfoRow(context, Icons.shield_outlined, status, isLast: true),
+                _buildInfoRow(context, Icons.phone_outlined, phone, isLast: true),
               ],
             ),
             const SizedBox(height: 20),
@@ -226,6 +242,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   : recentPredictions.map((p) => _buildPredictionRow(context, p, p == recentPredictions.last)).toList(),
             ),
             const SizedBox(height: 20),
+
+            // Point restoration button removed (handled automatically by system)
 
             // Logout Button
             ElevatedButton(
