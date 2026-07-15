@@ -75,6 +75,15 @@ class Tournament {
     required this.location,
     required this.startDate,
     required this.endDate,
+    this.description,
+    this.prizePool,
+    this.currency,
+    this.maxHorses,
+    this.minHorses,
+    this.status,
+    this.registeredCount,
+    this.currentRound,
+    this.totalRounds,
   });
 
   final String id;
@@ -82,13 +91,31 @@ class Tournament {
   final String location;
   final String startDate;
   final String endDate;
+  final String? description;
+  final num? prizePool;
+  final String? currency;
+  final int? maxHorses;
+  final int? minHorses;
+  final String? status;
+  final int? registeredCount;
+  final int? currentRound;
+  final int? totalRounds;
 
   factory Tournament.fromApi(Map<String, dynamic> json) => Tournament(
-    id: _stringValue(json['_id']),
+    id: _stringValue(json['_id'] ?? json['id']),
     name: _stringValue(json['name']),
     location: _stringValue(json['venue'] ?? json['location']),
     startDate: _dateOnly(json['startDate']),
     endDate: _dateOnly(json['endDate']),
+    description: json['description']?.toString(),
+    prizePool: json['prizePool'] is num ? json['prizePool'] as num : null,
+    currency: json['currency']?.toString(),
+    maxHorses: json['maxHorses'] is int ? json['maxHorses'] as int : (int.tryParse(_stringValue(json['maxHorses']))),
+    minHorses: json['minHorses'] is int ? json['minHorses'] as int : (int.tryParse(_stringValue(json['minHorses']))),
+    status: json['status']?.toString(),
+    registeredCount: json['registeredCount'] is int ? json['registeredCount'] as int : (int.tryParse(_stringValue(json['registeredCount']))),
+    currentRound: json['currentRound'] is int ? json['currentRound'] as int : (int.tryParse(_stringValue(json['currentRound']))),
+    totalRounds: json['totalRounds'] is int ? json['totalRounds'] as int : (int.tryParse(_stringValue(json['totalRounds']))),
   );
 }
 
@@ -101,6 +128,8 @@ class Race {
     required this.status,
     this.distance,
     this.maxHorses,
+    this.location,
+    this.prizePool,
   });
 
   final String id;
@@ -110,34 +139,40 @@ class Race {
   final String status;
   final int? distance;
   final int? maxHorses;
+  final String? location;
+  final num? prizePool;
 
   factory Race.fromApi(Map<String, dynamic> json) {
     final tournament = json['tournamentId'];
     return Race(
-      id: _stringValue(json['_id'] ?? json['id']),
+      id: _stringValue(json['_id'] ?? json['id'] ?? json['raceId']),
       tournamentId: tournament is Map
           ? _stringValue(tournament['_id'])
           : _stringValue(tournament),
-      name: _stringValue(json['name']),
-      scheduledAt: _stringValue(json['scheduledAt']),
+      name: _stringValue(json['name'] ?? json['raceName']),
+      scheduledAt: _stringValue(json['scheduledAt'] ?? json['scheduledTime']),
       status: _stringValue(json['status']),
       distance: json['distance'] is int ? json['distance'] : (int.tryParse(_stringValue(json['distance']))),
-      maxHorses: json['maxHorses'] is int ? json['maxHorses'] : (int.tryParse(_stringValue(json['maxHorses']))),
+      maxHorses: json['maxHorses'] is int ? json['maxHorses'] : (int.tryParse(_stringValue(json['maxHorses'] ?? json['maxParticipants']))),
+      location: _stringValue(json['location'] ?? (tournament is Map ? tournament['venue'] ?? tournament['location'] : '')),
+      prizePool: json['prizePool'] is num ? json['prizePool'] as num : null,
     );
   }
 
   factory Race.fromDirect(Map<String, dynamic> json) {
     final tournament = json['tournamentId'];
     return Race(
-      id: _stringValue(json['_id'] ?? json['id']),
+      id: _stringValue(json['_id'] ?? json['id'] ?? json['raceId']),
       tournamentId: tournament is Map
           ? _stringValue(tournament['_id'] ?? tournament['id'])
           : _stringValue(tournament),
-      name: _stringValue(json['name']),
-      scheduledAt: _stringValue(json['scheduledAt']),
+      name: _stringValue(json['name'] ?? json['raceName']),
+      scheduledAt: _stringValue(json['scheduledAt'] ?? json['scheduledTime']),
       status: _stringValue(json['status']),
       distance: json['distance'] is int ? json['distance'] : (int.tryParse(_stringValue(json['distance']))),
-      maxHorses: json['maxHorses'] is int ? json['maxHorses'] : (int.tryParse(_stringValue(json['maxHorses']))),
+      maxHorses: json['maxHorses'] is int ? json['maxHorses'] : (int.tryParse(_stringValue(json['maxHorses'] ?? json['maxParticipants']))),
+      location: _stringValue(json['location'] ?? (tournament is Map ? tournament['venue'] ?? tournament['location'] : '')),
+      prizePool: json['prizePool'] is num ? json['prizePool'] as num : null,
     );
   }
 }
@@ -162,15 +197,35 @@ class Invite {
     required this.horseId,
     required this.horseName,
     required this.status,
+    this.ownerName,
+    this.ownerEmail,
+    this.message,
+    this.raceName,
+    this.raceDistance,
+    this.raceScheduledAt,
+    this.horseBreed,
+    this.horseWeight,
   });
 
   final String id;
   final String horseId;
   final String horseName;
   final String status;
+  final String? ownerName;
+  final String? ownerEmail;
+  final String? message;
+  final String? raceName;
+  final int? raceDistance;
+  final String? raceScheduledAt;
+  final String? horseBreed;
+  final int? horseWeight;
 
   factory Invite.fromDirect(Map<String, dynamic> json) {
+    print("DEBUG INVITE JSON: $json");
     final horse = json['horseId'];
+    final race = json['raceId'];
+    final owner = json['ownerId'];
+    
     return Invite(
       id: _stringValue(json['_id'] ?? json['id']),
       horseId: horse is Map
@@ -180,6 +235,14 @@ class Invite {
           ? _stringValue(horse['name'])
           : _stringValue(json['horseName'] ?? horse),
       status: _stringValue(json['status']),
+      ownerName: owner is Map ? _stringValue(owner['fullName']) : null,
+      ownerEmail: owner is Map ? _stringValue(owner['email']) : null,
+      message: json['message']?.toString(),
+      raceName: race is Map ? _stringValue(race['name']) : null,
+      raceDistance: race is Map ? (race['distance'] is int ? race['distance'] : (int.tryParse(_stringValue(race['distance'])))) : null,
+      raceScheduledAt: race is Map ? _stringValue(race['scheduledAt']) : null,
+      horseBreed: horse is Map ? _stringValue(horse['breed']) : null,
+      horseWeight: horse is Map ? (horse['weight'] is int ? horse['weight'] : (int.tryParse(_stringValue(horse['weight'])))) : null,
     );
   }
 }

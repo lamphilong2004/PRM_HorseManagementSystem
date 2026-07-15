@@ -6,9 +6,10 @@ import '../ui/app_theme.dart';
 import '../ui/app_widgets.dart';
 
 class JockeyScheduleScreen extends StatefulWidget {
-  const JockeyScheduleScreen({super.key, required this.api});
+  const JockeyScheduleScreen({super.key, required this.api, this.initialDateStr});
 
   final ApiService api;
+  final String? initialDateStr;
 
   @override
   State<JockeyScheduleScreen> createState() => _JockeyScheduleScreenState();
@@ -16,20 +17,39 @@ class JockeyScheduleScreen extends StatefulWidget {
 
 class _JockeyScheduleScreenState extends State<JockeyScheduleScreen> {
   List<Race>? _items;
-  DateTime _selectedDate = DateTime.now();
-  DateTime _focusedDate = DateTime.now();
+  late DateTime _selectedDate;
+  late DateTime _focusedDate;
   bool _isMonthView = false;
   bool _showAllInPeriod = false;
 
   @override
   void initState() {
     super.initState();
+    
+    print("DEBUG jockey_schedule_screen: initialDateStr = ${widget.initialDateStr}");
+    DateTime start = DateTime.now();
+    if (widget.initialDateStr != null && widget.initialDateStr!.isNotEmpty) {
+      try {
+        start = DateTime.parse(widget.initialDateStr!).toLocal();
+        print("DEBUG jockey_schedule_screen: parsed start date = $start");
+      } catch (e) {
+        print("DEBUG jockey_schedule_screen: parse error = $e");
+      }
+    }
+    _selectedDate = start;
+    _focusedDate = start;
+
     widget.api
         .getJockeyRaces()
         .then((items) {
+          print("DEBUG jockey_schedule_screen: getJockeyRaces returned ${items.length} items: $items");
+          for (var item in items) {
+            print("DEBUG jockey_schedule_screen: item: name=${item.name}, scheduledAt=${item.scheduledAt}, location=${item.location}");
+          }
           if (mounted) setState(() => _items = items);
         })
-        .catchError((_) {
+        .catchError((err) {
+          print("DEBUG jockey_schedule_screen: getJockeyRaces error = $err");
           if (mounted) setState(() => _items = []);
         });
   }
@@ -249,30 +269,12 @@ class _JockeyScheduleScreenState extends State<JockeyScheduleScreen> {
                           context,
                           title: race.name,
                           subtitle: _formatDate(race.scheduledAt),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('Trạng thái:', style: context.typography.bodyMuted),
-                                  StatusBadge(label: _translateStatus(race.status), variant: StatusBadge.fromStatus(race.status)),
-                                ],
-                              ),
-                              const SizedBox(height: 24),
-                              AppButton(
-                                label: 'Xem kết quả',
-                                icon: Icons.emoji_events_outlined,
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  showRaceResultsModal(
-                                    context,
-                                    raceName: race.name,
-                                    onFetchResults: () => widget.api.getRaceResults(race.id),
-                                  );
-                                },
-                              ),
-                            ],
+                          child: _JockeyRaceDetailSheet(
+                            raceId: race.id,
+                            api: widget.api,
+                            raceName: race.name,
+                            formattedDate: _formatDate(race.scheduledAt),
+                            status: race.status,
                           ),
                         );
                       },
@@ -331,7 +333,9 @@ class _JockeyScheduleScreenState extends State<JockeyScheduleScreen> {
                                 Icon(Icons.stadium_outlined, size: 18, color: context.colors.muted),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'ERMS Main Stadium',
+                                  race.location != null && race.location!.isNotEmpty
+                                      ? race.location!
+                                      : 'ERMS Main Stadium',
                                   style: context.typography.bodyMuted.copyWith(fontSize: 14),
                                 ),
                               ],
@@ -631,6 +635,313 @@ class _JockeyScheduleScreenState extends State<JockeyScheduleScreen> {
     }
   }
 
+
+  String _formatDate(String iso) {
+    if (iso.isEmpty) return '—';
+    try {
+      final dt = DateTime.parse(iso);
+      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${months[dt.month - 1]} ${dt.day}, ${dt.year}  '
+             '${dt.hour.toString().padLeft(2, '0')}:'
+             '${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return iso;
+    }
+  }
+}
+
+class _JockeyRaceDetailSheet extends StatefulWidget {
+  const _JockeyRaceDetailSheet({
+    required this.raceId,
+    required this.api,
+    required this.raceName,
+    required this.formattedDate,
+    required this.status,
+  });
+
+  final String raceId;
+  final ApiService api;
+  final String raceName;
+  final String formattedDate;
+  final String status;
+
+  @override
+  State<_JockeyRaceDetailSheet> createState() => _JockeyRaceDetailSheetState();
+}
+
+class _JockeyRaceDetailSheetState extends State<_JockeyRaceDetailSheet> {
+  Map<String, dynamic>? _detail;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDetail();
+  }
+
+  void _loadDetail() {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    widget.api.getJockeyRaceDetail(widget.raceId).then((data) {
+      if (mounted) {
+        setState(() {
+          _detail = data;
+          _loading = false;
+        });
+      }
+    }).catchError((err) {
+      if (mounted) {
+        setState(() {
+          _error = err?.toString() ?? 'Không thể tải chi tiết cuộc đua';
+          _loading = false;
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Column(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text('Đang tải thông tin chi tiết...', style: context.typography.bodyMuted),
+          ],
+        ),
+      );
+    }
+
+    if (_error != null || _detail == null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Column(
+          children: [
+            Icon(Icons.error_outline, color: context.colors.danger, size: 48),
+            const SizedBox(height: 16),
+            Text(_error ?? 'Lỗi tải dữ liệu', style: context.typography.body),
+            const SizedBox(height: 16),
+            AppButton(
+              label: 'Thử lại',
+              onPressed: _loadDetail,
+              fullWidth: false,
+            ),
+          ],
+        ),
+      );
+    }
+
+    final data = _detail!;
+    final horse = data['horse'] as Map?;
+    final owner = data['owner'] as Map?;
+    final registrationStatus = data['registrationStatus']?.toString() ?? widget.status;
+    
+    // Tình trạng / Loại đua
+    final distance = data['distance']?.toString() ?? '—';
+    final location = data['location']?.toString() ?? '—';
+    final raceType = data['raceType']?.toString() ?? '—';
+    final trackCondition = data['trackCondition']?.toString() ?? '—';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Trạng thái cuộc đua
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Trạng thái:', style: context.typography.bodyMuted),
+            StatusBadge(
+              label: _translateStatus(widget.status),
+              variant: StatusBadge.fromStatus(widget.status),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        
+        // Trạng thái đăng ký của Jockey/Ngựa trong cuộc đua
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: context.colors.surface2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: context.colors.border),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Trạng thái phân công:', style: context.typography.bodyMuted.copyWith(fontSize: 13)),
+              Text(
+                _translateStatus(registrationStatus),
+                style: TextStyle(
+                  color: registrationStatus.toLowerCase() == 'confirmed' || registrationStatus.toLowerCase() == 'accepted'
+                      ? const Color(0xFF10B981)
+                      : context.colors.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // 🐎 THÔNG TIN NGỰA ĐUA
+        Text(
+          '🐎 THÔNG TIN NGỰA ĐUA',
+          style: context.typography.captionUpper.copyWith(
+            fontSize: 11,
+            color: context.colors.muted,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.0,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (horse != null) ...[
+          GlassCard(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  horse['name']?.toString() ?? 'Chưa rõ',
+                  style: context.typography.h3.copyWith(fontSize: 18),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildSubDetailItem('Giống', horse['breed']?.toString() ?? '—'),
+                    _buildSubDetailItem('Giới tính', _translateGender(horse['gender']?.toString())),
+                    _buildSubDetailItem('Cân nặng', horse['weight'] != null ? '${horse['weight']} kg' : '—'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ] else ...[
+          Text('Chưa phân công ngựa', style: context.typography.body),
+        ],
+        const SizedBox(height: 24),
+
+        // 👤 THÔNG TIN CHỦ NGỰA
+        Text(
+          '👤 THÔNG TIN CHỦ NGỰA',
+          style: context.typography.captionUpper.copyWith(
+            fontSize: 11,
+            color: context.colors.muted,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.0,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (owner != null) ...[
+          GlassCard(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  owner['fullName']?.toString() ?? 'Chưa rõ',
+                  style: context.typography.body.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(Icons.phone_outlined, size: 14, color: context.colors.muted),
+                    const SizedBox(width: 8),
+                    Text(owner['phone']?.toString() ?? '—', style: context.typography.bodyMuted),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(Icons.mail_outline, size: 14, color: context.colors.muted),
+                    const SizedBox(width: 8),
+                    Text(owner['email']?.toString() ?? '—', style: context.typography.bodyMuted),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ] else ...[
+          Text('Chưa cập nhật thông tin chủ ngựa', style: context.typography.body),
+        ],
+        const SizedBox(height: 24),
+
+        // 🏁 CHI TIẾT CUỘC ĐUA
+        Text(
+          '🏁 CHI TIẾT CUỘC ĐUA',
+          style: context.typography.captionUpper.copyWith(
+            fontSize: 11,
+            color: context.colors.muted,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.0,
+          ),
+        ),
+        const SizedBox(height: 8),
+        GlassCard(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              _buildRowInfo('Cự ly', '$distance m'),
+              const Divider(height: 16),
+              _buildRowInfo('Địa điểm', location),
+              const Divider(height: 16),
+              _buildRowInfo('Loại hình', _translateRaceType(raceType)),
+              const Divider(height: 16),
+              _buildRowInfo('Mặt sân', _translateTrackCondition(trackCondition)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Xem kết quả Button if completed
+        if (widget.status.toLowerCase() == 'completed') ...[
+          AppButton(
+            label: 'Xem kết quả cuộc đua',
+            icon: Icons.emoji_events_outlined,
+            onPressed: () {
+              Navigator.pop(context);
+              showRaceResultsModal(
+                context,
+                raceName: widget.raceName,
+                onFetchResults: () => widget.api.getRaceResults(widget.raceId),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSubDetailItem(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: context.typography.caption.copyWith(color: context.colors.muted)),
+        const SizedBox(height: 2),
+        Text(value, style: context.typography.body.copyWith(fontWeight: FontWeight.w600, fontSize: 13)),
+      ],
+    );
+  }
+
+  Widget _buildRowInfo(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: context.typography.bodyMuted),
+        Text(value, style: context.typography.body.copyWith(fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+
   String _translateStatus(String status) {
     return switch (status.toLowerCase()) {
       'pending'   => 'Đang chờ',
@@ -650,17 +961,33 @@ class _JockeyScheduleScreenState extends State<JockeyScheduleScreen> {
     };
   }
 
-  String _formatDate(String iso) {
-    if (iso.isEmpty) return '—';
-    try {
-      final dt = DateTime.parse(iso);
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return '${months[dt.month - 1]} ${dt.day}, ${dt.year}  '
-             '${dt.hour.toString().padLeft(2, '0')}:'
-             '${dt.minute.toString().padLeft(2, '0')}';
-    } catch (_) {
-      return iso;
-    }
+  String _translateGender(String? gender) {
+    if (gender == null) return '—';
+    return switch (gender.toUpperCase()) {
+      'MALE' => 'Đực',
+      'FEMALE' => 'Cái',
+      'GELDING' => 'Thiến',
+      _ => gender,
+    };
+  }
+
+  String _translateRaceType(String type) {
+    return switch (type.toUpperCase()) {
+      'FLAT' => 'Đua phẳng (Flat)',
+      'HURDLE' => 'Đua vượt rào (Hurdle)',
+      'STEEPLECHASE' => 'Đua chướng ngại vật (Steeplechase)',
+      _ => type,
+    };
+  }
+
+  String _translateTrackCondition(String condition) {
+    return switch (condition.toUpperCase()) {
+      'GOOD' => 'Tốt',
+      'FIRM' => 'Cứng',
+      'MUDDY' => 'Bùn lầy',
+      'YIELDING' => 'Mềm',
+      'HEAVY' => 'Nặng',
+      _ => condition,
+    };
   }
 }

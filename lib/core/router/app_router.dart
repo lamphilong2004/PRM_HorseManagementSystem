@@ -19,6 +19,7 @@ import '../../screens/referee_races_screen.dart';
 import '../../screens/referee_report_screen.dart';
 import '../../screens/register_screen.dart';
 import '../../screens/tournaments_screen.dart';
+import '../../screens/tournament_detail_screen.dart';
 import '../../screens/welcome_screen.dart';
 import '../../screens/jockey_schedule_screen.dart';
 import '../../screens/livestream_screen.dart';
@@ -64,6 +65,14 @@ AppRouter createAppRouter(AuthController auth, WalletService walletService) {
         path: '/tournaments',
         name: 'Tournaments',
         builder: (context, state) => TournamentsScreen(api: auth.apiService),
+      ),
+      GoRoute(
+        path: '/tournaments/:id',
+        name: 'TournamentDetail',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return TournamentDetailScreen(api: auth.apiService, tournamentId: id);
+        },
       ),
       GoRoute(
         path: '/races',
@@ -128,7 +137,14 @@ AppRouter createAppRouter(AuthController auth, WalletService walletService) {
       GoRoute(
         path: '/jockey-schedule',
         name: 'JockeySchedule',
-        builder: (context, state) => JockeyScheduleScreen(api: auth.apiService),
+        builder: (context, state) {
+          final dateStr = state.uri.queryParameters['date'];
+          print("DEBUG app_router: dateStr = $dateStr");
+          return JockeyScheduleScreen(
+            api: auth.apiService,
+            initialDateStr: dateStr,
+          );
+        },
       ),
       GoRoute(
         path: '/livestream',

@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../core/api/api_client.dart';
 import '../core/api/api_service.dart';
@@ -462,35 +463,43 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          tournament.name,
-                          style: context.typography.h2.copyWith(fontSize: 20, fontWeight: FontWeight.w700),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(Icons.location_on_outlined, size: 16, color: context.colors.muted),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                tournament.location,
-                                style: context.typography.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1.2),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                    child: GestureDetector(
+                      onTap: user.role == Role.jockey
+                          ? () => context.push('/tournaments/${tournament.id}')
+                          : null,
+                      behavior: HitTestBehavior.opaque,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            tournament.name,
+                            style: context.typography.h2.copyWith(fontSize: 20, fontWeight: FontWeight.w700),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(Icons.location_on_outlined, size: 16, color: context.colors.muted),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  tournament.location,
+                                  style: context.typography.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1.2),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   TextButton(
-                    onPressed: () {},
+                    onPressed: user.role == Role.jockey
+                        ? () => context.push('/tournaments')
+                        : () {},
                     child: Text('VIEW ALL', style: context.typography.caption.copyWith(color: context.colors.accent, fontWeight: FontWeight.w700)),
                   ),
                 ],
