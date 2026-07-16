@@ -63,6 +63,35 @@ class ApiService {
     return _extractList(response.data, null).map(Horse.fromDirect).toList();
   }
 
+  Future<dynamic> createHorse(Map<String, dynamic> data) async {
+    final response = await _client.post('/horses', data);
+    return response.data;
+  }
+
+  Future<List<Map<String, dynamic>>> getAvailableJockeys() async {
+    final response = await _client.get('/jockeys');
+    var list = _extractList(response.data, 'jockeys');
+    if (list.isEmpty) list = _extractList(response.data, 'data');
+    if (list.isEmpty) list = _extractList(response.data, null);
+    return list;
+  }
+
+  Future<dynamic> registerHorseForRace(String raceId, String horseId, String jockeyId) async {
+    final response = await _client.post('/registrations', {
+      'raceId': raceId,
+      'horseId': horseId,
+      'jockeyId': jockeyId,
+    });
+    return response.data;
+  }
+
+  Future<dynamic> registerHorseForTournament(String tournamentId, String horseId) async {
+    final response = await _client.post('/tournaments/$tournamentId/register', {
+      'horseId': horseId,
+    });
+    return response.data;
+  }
+
   Future<List<Invite>> getInvites() async {
     final response = await _client.get('/jockeys/me/invitations');
     return _extractList(

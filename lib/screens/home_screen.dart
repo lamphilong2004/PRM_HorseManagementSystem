@@ -50,7 +50,7 @@ const _spectatorNav = [
 
 const _ownerNav = [
   _NavItem(routeName: 'HomeDashboard',  label: 'Trang chủ',   icon: Icons.home_outlined,              activeIcon: Icons.home),
-  _NavItem(routeName: 'Races',          label: 'Vòng đua',     icon: Icons.flag_outlined,               activeIcon: Icons.flag),
+  _NavItem(routeName: 'Tournaments',    label: 'Giải đấu',    icon: Icons.emoji_events_outlined,       activeIcon: Icons.emoji_events),
   _NavItem(routeName: 'Horses',         label: 'Ngựa đua',     icon: Icons.pets_outlined,               activeIcon: Icons.pets),
 ];
 
@@ -292,8 +292,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildChildScreen(String routeName) {
     final api = widget.auth.apiService;
     return switch (routeName) {
-      'Tournaments'    => TournamentsScreen(api: api),
-      'Races'          => RacesScreen(api: api),
+      'Tournaments'    => TournamentsScreen(api: api, role: widget.auth.session?.user.role),
+      'Races'          => RacesScreen(api: api, role: widget.auth.session?.user.role),
       'Livestream'     => LiveStreamScreen(api: api),
       'Predictions'    => PredictionsScreen(api: api),
       'Profile'        => ProfileScreen(auth: widget.auth, walletService: widget.walletService),

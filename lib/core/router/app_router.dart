@@ -68,7 +68,7 @@ AppRouter createAppRouter(AuthController auth, WalletService walletService) {
       GoRoute(
         path: '/races',
         name: 'Races',
-        builder: (context, state) => RacesScreen(api: auth.apiService),
+        builder: (context, state) => RacesScreen(api: auth.apiService, role: auth.session?.user.role),
       ),
       GoRoute(
         path: '/horses',

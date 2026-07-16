@@ -75,6 +75,7 @@ class Tournament {
     required this.location,
     required this.startDate,
     required this.endDate,
+    this.status,
   });
 
   final String id;
@@ -82,6 +83,7 @@ class Tournament {
   final String location;
   final String startDate;
   final String endDate;
+  final String? status;
 
   factory Tournament.fromApi(Map<String, dynamic> json) => Tournament(
     id: _stringValue(json['_id']),
@@ -89,6 +91,7 @@ class Tournament {
     location: _stringValue(json['venue'] ?? json['location']),
     startDate: _dateOnly(json['startDate']),
     endDate: _dateOnly(json['endDate']),
+    status: _stringValue(json['status']),
   );
 }
 
