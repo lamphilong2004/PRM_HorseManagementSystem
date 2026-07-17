@@ -26,15 +26,11 @@ class _JockeyScheduleScreenState extends State<JockeyScheduleScreen> {
   void initState() {
     super.initState();
     
-    print("DEBUG jockey_schedule_screen: initialDateStr = ${widget.initialDateStr}");
     DateTime start = DateTime.now();
     if (widget.initialDateStr != null && widget.initialDateStr!.isNotEmpty) {
       try {
         start = DateTime.parse(widget.initialDateStr!).toLocal();
-        print("DEBUG jockey_schedule_screen: parsed start date = $start");
-      } catch (e) {
-        print("DEBUG jockey_schedule_screen: parse error = $e");
-      }
+      } catch (_) {}
     }
     _selectedDate = start;
     _focusedDate = start;
@@ -42,14 +38,9 @@ class _JockeyScheduleScreenState extends State<JockeyScheduleScreen> {
     widget.api
         .getJockeyRaces()
         .then((items) {
-          print("DEBUG jockey_schedule_screen: getJockeyRaces returned ${items.length} items: $items");
-          for (var item in items) {
-            print("DEBUG jockey_schedule_screen: item: name=${item.name}, scheduledAt=${item.scheduledAt}, location=${item.location}");
-          }
           if (mounted) setState(() => _items = items);
         })
         .catchError((err) {
-          print("DEBUG jockey_schedule_screen: getJockeyRaces error = $err");
           if (mounted) setState(() => _items = []);
         });
   }

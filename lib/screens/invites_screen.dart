@@ -367,7 +367,6 @@ class _InvitesScreenState extends State<InvitesScreen> {
                                   child: InkWell(
                                     onTap: () {
                                       final date = invite.raceScheduledAt;
-                                      print("DEBUG invites_screen: raceScheduledAt = $date");
                                       if (date != null && date.isNotEmpty) {
                                         context.push('/jockey-schedule?date=${Uri.encodeComponent(date)}');
                                       } else {

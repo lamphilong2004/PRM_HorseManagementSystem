@@ -139,7 +139,6 @@ AppRouter createAppRouter(AuthController auth, WalletService walletService) {
         name: 'JockeySchedule',
         builder: (context, state) {
           final dateStr = state.uri.queryParameters['date'];
-          print("DEBUG app_router: dateStr = $dateStr");
           return JockeyScheduleScreen(
             api: auth.apiService,
             initialDateStr: dateStr,

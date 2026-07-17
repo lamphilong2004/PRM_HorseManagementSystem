@@ -221,7 +221,6 @@ class Invite {
   final int? horseWeight;
 
   factory Invite.fromDirect(Map<String, dynamic> json) {
-    print("DEBUG INVITE JSON: $json");
     final horse = json['horseId'];
     final race = json['raceId'];
     final owner = json['ownerId'];
