@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../core/auth/auth_controller.dart';
 import '../core/models/app_models.dart';
@@ -48,7 +49,7 @@ const _spectatorNav = [
 
 const _ownerNav = [
   _NavItem(routeName: 'HomeDashboard',  label: 'Trang chủ',   icon: Icons.home_outlined,              activeIcon: Icons.home),
-  _NavItem(routeName: 'Races',          label: 'Vòng đua',     icon: Icons.flag_outlined,               activeIcon: Icons.flag),
+  _NavItem(routeName: 'Tournaments',    label: 'Giải đấu',    icon: Icons.emoji_events_outlined,       activeIcon: Icons.emoji_events),
   _NavItem(routeName: 'Horses',         label: 'Ngựa đua',     icon: Icons.pets_outlined,               activeIcon: Icons.pets),
 ];
 
@@ -282,8 +283,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildChildScreen(String routeName) {
     final api = widget.auth.apiService;
     return switch (routeName) {
-      'Tournaments'    => TournamentsScreen(api: api),
-      'Races'          => RacesScreen(api: api),
+      'Tournaments'    => TournamentsScreen(api: api, role: widget.auth.session?.user.role),
+      'Races'          => RacesScreen(api: api, role: widget.auth.session?.user.role),
       'Livestream'     => LiveStreamScreen(api: api),
       'Predictions'    => PredictionsScreen(api: api, walletService: widget.walletService),
       'Profile'        => ProfileScreen(auth: widget.auth, walletService: widget.walletService),
@@ -539,6 +540,52 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(s.icon, color: s.color, size: 20),
+              // Tournament Section Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: user.role == Role.jockey
+                          ? () => context.push('/tournaments/${tournament.id}')
+                          : null,
+                      behavior: HitTestBehavior.opaque,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            tournament.name,
+                            style: context.typography.h2.copyWith(fontSize: 20, fontWeight: FontWeight.w700),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(Icons.location_on_outlined, size: 16, color: context.colors.muted),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  tournament.location,
+                                  style: context.typography.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1.2),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: user.role == Role.jockey
+                        ? () => context.push('/tournaments')
+                        : () {},
+                    child: Text('VIEW ALL', style: context.typography.caption.copyWith(color: context.colors.accent, fontWeight: FontWeight.w700)),
+                  ),
+                ],
               ),
               const SizedBox(width: 10),
               Expanded(

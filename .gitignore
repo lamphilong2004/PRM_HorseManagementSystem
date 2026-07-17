@@ -19,5 +19,3 @@ Thumbs.db
 .env*.local
 
 # Generated platform files not present in this repo
-/ios/
-/android/

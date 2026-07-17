@@ -6,9 +6,10 @@ import '../ui/app_theme.dart';
 import '../ui/app_widgets.dart';
 
 class RacesScreen extends StatefulWidget {
-  const RacesScreen({super.key, required this.api});
+  const RacesScreen({super.key, required this.api, this.role});
 
   final ApiService api;
+  final Role? role;
 
   @override
   State<RacesScreen> createState() => _RacesScreenState();
@@ -79,16 +80,22 @@ class _RacesScreenState extends State<RacesScreen> {
             ),
           );
         }
-        return _RaceCard(race: _items![index - 1]);
+        return _RaceCard(
+          race: _items![index - 1],
+          api: widget.api,
+          role: widget.role,
+        );
       },
     );
   }
 }
 
 class _RaceCard extends StatelessWidget {
-  const _RaceCard({required this.race});
+  const _RaceCard({required this.race, required this.api, this.role});
 
   final Race race;
+  final ApiService api;
+  final Role? role;
 
   @override
   Widget build(BuildContext context) {
@@ -149,6 +156,7 @@ class _RaceCard extends StatelessWidget {
                 ),
               ],
             ),
+
           ],
         ),
       ),

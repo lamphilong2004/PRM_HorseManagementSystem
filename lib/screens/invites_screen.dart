@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../core/api/api_service.dart';
 import '../core/models/app_models.dart';
@@ -16,13 +17,25 @@ class InvitesScreen extends StatefulWidget {
 
 class _InvitesScreenState extends State<InvitesScreen> {
   List<Invite>? _items;
+  bool _loading = false;
 
   Future<void> _load() async {
+    if (mounted) setState(() => _loading = true);
     try {
       final items = await widget.api.getInvites();
-      if (mounted) setState(() => _items = items);
+      if (mounted) {
+        setState(() {
+          _items = items;
+          _loading = false;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() => _items = []);
+      if (mounted) {
+        setState(() {
+          _items = [];
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -36,7 +49,7 @@ class _InvitesScreenState extends State<InvitesScreen> {
     try {
       await widget.api.acceptInvitation(inviteId);
       if (!mounted) return;
-      await showAppAlert(context, 'Thành công', 'Đã chấp nhận lời mời đua.');
+      await showAppAlert(context, 'Thành công 🎉', 'Đã chấp nhận lời mời đua.');
       _load();
     } catch (e) {
       if (!mounted) return;
@@ -59,13 +72,16 @@ class _InvitesScreenState extends State<InvitesScreen> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: 'Lời mời',
-      body: _buildBody(),
+      title: 'Lời mời của tôi',
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: _buildBody(),
+      ),
     );
   }
 
   Widget _buildBody() {
-    if (_items == null) {
+    if (_items == null && _loading) {
       return ListView.builder(
         padding: const EdgeInsets.all(20),
         itemCount: 4,
@@ -75,226 +91,421 @@ class _InvitesScreenState extends State<InvitesScreen> {
         ),
       );
     }
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Section Title
+        // Web-like Header Section
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-          child: Column(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Jockey Invites', style: context.typography.h2.copyWith(fontSize: 28, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text('Review and manage your upcoming race invitations from stable owners.', style: context.typography.bodyMuted.copyWith(fontSize: 16)),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0x1A10B981), // Emerald green tint
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0x3310B981)),
+                ),
+                child: const Icon(
+                  Icons.mail_outline_rounded,
+                  color: Color(0xFF10B981),
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Lời Mời Của Tôi',
+                      style: context.typography.h1.copyWith(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Quản lý các yêu cầu mời điều khiển ngựa từ các chủ ngựa khác. Phản hồi nhanh chóng để không bỏ lỡ cơ hội tham gia các giải đua đỉnh cao.',
+                      style: context.typography.bodyMuted.copyWith(
+                        fontSize: 13,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
-        
+
         Expanded(
-          child: _items!.isEmpty
-            ? const EmptyState(
-                icon: Icons.mail_outline,
-                title: 'Không có lời mời',
-                subtitle: 'Bạn hiện không có lời mời thi đấu nào.',
-              )
-            : ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                itemCount: _items!.length,
-                itemBuilder: (context, index) {
-                  final invite = _items![index];
-                  final isPending = invite.status.toLowerCase() == 'pending';
-                  
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 24),
-                    child: GlassCard(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Header: Status, Race Name, Image
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      isPending ? 'PENDING INVITE' : _translateStatus(invite.status).toUpperCase(),
-                                      style: context.typography.caption.copyWith(
-                                        color: isPending ? context.colors.accent : context.colors.muted,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 1.5,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      invite.horseName,
-                                      style: context.typography.h3.copyWith(fontSize: 20),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Row(
-                                      children: [
-                                        Icon(Icons.calendar_today_outlined, size: 14, color: context.colors.muted),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'ERMS Tournament', // Dummy location based on HTML
-                                          style: context.typography.bodyMuted.copyWith(fontSize: 14),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              // Horse Image Box
-                              Container(
-                                width: 64,
-                                height: 64,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                                  image: const DecorationImage(
-                                    image: NetworkImage('https://images.unsplash.com/photo-1598974357801-cbca100e65d3?auto=format&fit=crop&q=80&w=200'),
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          
-                          // Stable Owner Info Box
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: context.colors.surface2.withValues(alpha: 0.5),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
+          child: _items == null || _items!.isEmpty
+              ? const EmptyState(
+                  icon: Icons.mail_outline_rounded,
+                  title: 'Không có lời mời',
+                  subtitle: 'Bạn hiện không có lời mời thi đấu nào.',
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  itemCount: _items!.length,
+                  itemBuilder: (context, index) {
+                    final invite = _items![index];
+                    final isPending = invite.status.toLowerCase() == 'pending';
+                    final isAccepted = invite.status.toLowerCase() == 'accepted';
+                    final isRejected = invite.status.toLowerCase() == 'rejected';
+                    final isCancelled = invite.status.toLowerCase() == 'cancelled';
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 20),
+                      child: GlassCard(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Header Row: Owner info & Status Badge
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: context.colors.accent.withValues(alpha: 0.2),
-                                    shape: BoxShape.circle,
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        'TỪ CHỦ NGỰA: ',
+                                        style: context.typography.captionUpper.copyWith(
+                                          fontSize: 11,
+                                          color: context.colors.muted,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Text(
+                                          (invite.ownerName ?? 'Horse Owner').toUpperCase(),
+                                          style: context.typography.body.copyWith(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w800,
+                                            color: context.colors.text,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  child: Icon(Icons.person, color: context.colors.accent, size: 20),
                                 ),
-                                const SizedBox(width: 12),
+                                _buildStatusBadge(context, invite.status),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+
+                            // Horse Name Row
+                            Row(
+                              children: [
+                                const Text(
+                                  '🐎',
+                                  style: TextStyle(fontSize: 16),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  invite.horseName,
+                                  style: context.typography.h3.copyWith(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Container(height: 1, color: context.colors.border),
+                            const SizedBox(height: 16),
+
+                            // Details Grid (Two columns)
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        'STABLE OWNER',
-                                        style: context.typography.caption.copyWith(fontSize: 10, letterSpacing: 1.2),
+                                      _buildDetailItem(
+                                        context,
+                                        label: '📅 GIẢI ĐUA',
+                                        value: invite.raceName ?? 'Chưa cập nhật',
                                       ),
-                                      Text(
-                                        'ERMS Equine Stables', // Dummy owner name based on HTML
-                                        style: context.typography.body.copyWith(fontWeight: FontWeight.w600),
+                                      const SizedBox(height: 16),
+                                      _buildDetailItem(
+                                        context,
+                                        label: '🐴 NGỰA',
+                                        value: '${invite.horseBreed ?? 'Nice'} - ${invite.horseWeight ?? 450}kg',
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      _buildDetailItem(
+                                        context,
+                                        label: '📏 CỰ LY',
+                                        value: invite.raceDistance != null ? '${invite.raceDistance}m' : '1000m',
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _buildDetailItem(
+                                        context,
+                                        label: '✉️ LỜI NHẮN',
+                                        value: invite.message != null && invite.message!.isNotEmpty
+                                            ? '"${invite.message}"'
+                                            : '"Mời bạn cưỡi ngựa của tôi"',
                                       ),
                                     ],
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                          
-                          // Action Buttons
-                          if (isPending) ...[
-                            const SizedBox(height: 20),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.shade600,
-                                      borderRadius: BorderRadius.circular(12),
-                                      boxShadow: [
-                                        BoxShadow(color: Colors.green.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4)),
-                                      ],
-                                    ),
-                                    child: Material(
-                                      color: Colors.transparent,
-                                      child: InkWell(
-                                        onTap: () => _handleAccept(invite.id),
+
+                            // Bottom actions based on status
+                            if (isPending) ...[
+                              const SizedBox(height: 20),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [Color(0xFF10B981), Color(0xFF059669)],
+                                        ),
                                         borderRadius: BorderRadius.circular(12),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(vertical: 14),
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              const Icon(Icons.check_circle_outline, color: Colors.white, size: 18),
-                                              const SizedBox(width: 8),
-                                              Text('ACCEPT', style: context.typography.label.copyWith(color: Colors.white, letterSpacing: 1.2)),
-                                            ],
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          onTap: () => _handleAccept(invite.id),
+                                          borderRadius: BorderRadius.circular(12),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                            child: Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                const Icon(Icons.check_circle_outline, color: Colors.white, size: 18),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  'ĐỒNG Ý',
+                                                  style: context.typography.label.copyWith(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.bold,
+                                                    letterSpacing: 1.2,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.red.withValues(alpha: 0.4)),
-                                      borderRadius: BorderRadius.circular(12),
-                                      color: Colors.red.withValues(alpha: 0.1),
-                                    ),
-                                    child: Material(
-                                      color: Colors.transparent,
-                                      child: InkWell(
-                                        onTap: () => _handleReject(invite.id),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: const Color(0x33EF4444)),
                                         borderRadius: BorderRadius.circular(12),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(vertical: 14),
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(Icons.cancel_outlined, color: Colors.red.shade400, size: 18),
-                                              const SizedBox(width: 8),
-                                              Text('REJECT', style: context.typography.label.copyWith(color: Colors.red.shade400, letterSpacing: 1.2)),
-                                            ],
+                                        color: const Color(0x1AEF4444),
+                                      ),
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          onTap: () => _handleReject(invite.id),
+                                          borderRadius: BorderRadius.circular(12),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                            child: Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                const Icon(Icons.cancel_outlined, color: Color(0xFFEF4444), size: 18),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  'TỪ CHỐI',
+                                                  style: context.typography.label.copyWith(
+                                                    color: const Color(0xFFEF4444),
+                                                    fontWeight: FontWeight.bold,
+                                                    letterSpacing: 1.2,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
+                                ],
+                              ),
+                            ] else if (isAccepted) ...[
+                              const SizedBox(height: 20),
+                              Container(
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF10B981), Color(0xFF059669)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                              ],
-                            ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () {
+                                      final date = invite.raceScheduledAt;
+                                      if (date != null && date.isNotEmpty) {
+                                        context.push('/jockey-schedule?date=${Uri.encodeComponent(date)}');
+                                      } else {
+                                        context.push('/jockey-schedule');
+                                      }
+                                    },
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            'Xem lịch thi đấu  >',
+                                            style: context.typography.label.copyWith(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ] else if (isCancelled || isRejected) ...[
+                              const SizedBox(height: 20),
+                              Container(
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: context.isDark ? const Color(0x1AFF5555) : const Color(0xFFFEE2E2),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: context.isDark ? const Color(0x33FF5555) : const Color(0xFFFCA5A5),
+                                  ),
+                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.block_flipped,
+                                      color: context.isDark ? const Color(0xFFFFAAAA) : const Color(0xFFDC2626),
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      isCancelled ? 'Cuộc đua đã có Jockey khác' : 'Yêu cầu đã bị từ chối',
+                                      style: TextStyle(
+                                        color: context.isDark ? const Color(0xFFFFAAAA) : const Color(0xFFDC2626),
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
+                    );
+                  },
+                ),
         ),
       ],
     );
   }
 
-  String _translateStatus(String status) {
-    return switch (status.toLowerCase()) {
-      'pending'   => 'Đang chờ',
-      'open'      => 'Đang mở',
-      'active'    => 'Hoạt động',
-      'completed' => 'Hoàn thành',
-      'approved'  => 'Đã duyệt',
-      'confirmed' => 'Xác nhận',
-      'rejected'  => 'Bị từ chối',
-      'inactive'  => 'Không hoạt động',
-      'cancelled' => 'Đã hủy',
-      'scheduled' => 'Lên lịch',
-      'ongoing'   => 'Đang diễn ra',
-      'won'       => 'Thắng',
-      'lost'      => 'Thua',
-      _           => status,
+  Widget _buildDetailItem(BuildContext context, {required String label, required String value}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: context.typography.captionUpper.copyWith(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: context.colors.muted,
+            letterSpacing: 0.6,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: context.typography.body.copyWith(
+            fontWeight: FontWeight.bold,
+            color: context.colors.text,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusBadge(BuildContext context, String status) {
+    final (bg, fg, border, text) = switch (status.toLowerCase()) {
+      'accepted' => (
+          const Color(0xFFD1FAE5),
+          const Color(0xFF065F46),
+          const Color(0xFFA7F3D0),
+          'Đã đồng ý',
+        ),
+      'rejected' => (
+          const Color(0xFFFEE2E2),
+          const Color(0xFF991B1B),
+          const Color(0xFFFCA5A5),
+          'Đã từ chối',
+        ),
+      'cancelled' => (
+          const Color(0xFFFFE4E6),
+          const Color(0xFF9F1239),
+          const Color(0xFFFECDD3),
+          'Đã chốt Jockey khác',
+        ),
+      _ => (
+          const Color(0xFFFEF3C7),
+          const Color(0xFF92400E),
+          const Color(0xFFFDE68A),
+          'Đang chờ',
+        ),
     };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: border),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: fg,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.4,
+        ),
+      ),
+    );
   }
 }
