@@ -53,6 +53,11 @@ class ApiService {
     ).map(Tournament.fromApi).toList();
   }
 
+  Future<Tournament> getTournamentById(String tournId) async {
+    final response = await _client.get('/tournaments/$tournId');
+    return Tournament.fromApi(Map<String, dynamic>.from(response.data as Map));
+  }
+
   Future<List<Race>> getRaces({int limit = 1000}) async {
     final response = await _client.get('/races?limit=$limit');
     return _extractList(response.data, 'races').map(Race.fromApi).toList();
@@ -112,7 +117,12 @@ class ApiService {
 
   Future<List<Race>> getJockeyRaces() async {
     final response = await _client.get('/jockeys/me/races');
-    return _extractList(response.data, null).map(Race.fromDirect).toList();
+    return _extractList(response.data, 'data').map(Race.fromDirect).toList();
+  }
+
+  Future<Map<String, dynamic>> getJockeyRaceDetail(String raceId) async {
+    final response = await _client.get('/jockeys/me/races/$raceId');
+    return Map<String, dynamic>.from(response.data as Map);
   }
 
   Future<List<Prediction>> getPredictions() async {
