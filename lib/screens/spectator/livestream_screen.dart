@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import '../core/api/api_service.dart';
-import '../core/models/app_models.dart';
-import '../ui/app_theme.dart';
+import '../../core/api/api_service.dart';
+import '../../core/models/app_models.dart';
+import '../../ui/app_theme.dart';
 import 'package:intl/intl.dart';
 
 class LiveStreamScreen extends StatefulWidget {
@@ -24,15 +24,13 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
   bool _loadingStream = false;
 
   Map<String, double> _progress = {};
-  Map<String, double> _speedMap = {};
-  List<Map<String, dynamic>> _finishedHorses = [];
+  List<SimulationPlan> _plans = [];
   
   String _gameState = 'countdown'; // countdown | running | finished
   int _countdown = 3;
-  int _elapsed = 0;
+  double _elapsed = 0.0;
   
   Timer? _countdownTimer;
-  Timer? _elapsedTimer;
   Timer? _simulationTimer;
   DateTime? _startTime;
 
@@ -51,7 +49,6 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
   @override
   void dispose() {
     _countdownTimer?.cancel();
-    _elapsedTimer?.cancel();
     _simulationTimer?.cancel();
     super.dispose();
   }
@@ -122,24 +119,58 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
 
   void _resetSimulation(List<dynamic> horses) {
     _countdownTimer?.cancel();
-    _elapsedTimer?.cancel();
     _simulationTimer?.cancel();
 
     final nextProgress = <String, double>{};
-    final nextSpeeds = <String, double>{};
-    final rand = Random();
+    final List<SimulationPlan> rawPlans = [];
+    final raceKey = _selectedRace?.id ?? 'race';
 
     for (int i = 0; i < horses.length; i++) {
       final id = _getStreamHorseId(horses[i], i);
       nextProgress[id] = 0.0;
-      nextSpeeds[id] = 0.65 + rand.nextDouble() * 0.55;
+      
+      final stamina = seededUnit('$raceKey|$id|stamina');
+      final breakSpeed = seededUnit('$raceKey|$id|break');
+      final finishTime = round2(23.0 + stamina * 15.0 + breakSpeed * 4.0);
+      final easing = 0.95 + seededUnit('$raceKey|$id|pace') * 0.28;
+
+      debugPrint('SIM_DEBUG: name=${horses[i] is RaceHorse ? (horses[i] as RaceHorse).name : horses[i]}, id=$id, stamina=$stamina, breakSpeed=$breakSpeed, finishTime=$finishTime, easing=$easing');
+
+      rawPlans.add(SimulationPlan(
+        streamId: id,
+        laneIndex: i,
+        finishTime: finishTime,
+        easing: easing,
+      ));
     }
 
+    // Sort to apply ranking adjustments
+    final List<SimulationPlan> sorted = List.from(rawPlans);
+    sorted.sort((a, b) {
+      if (a.finishTime != b.finishTime) {
+        return a.finishTime.compareTo(b.finishTime);
+      }
+      return a.streamId.compareTo(b.streamId);
+    });
+
+    final Map<String, SimulationPlan> finalById = {};
+    for (int rankIndex = 0; rankIndex < sorted.length; rankIndex++) {
+      final plan = sorted[rankIndex];
+      final adjustedFinishTime = round2(plan.finishTime + rankIndex * 0.01);
+      finalById[plan.streamId] = SimulationPlan(
+        streamId: plan.streamId,
+        laneIndex: plan.laneIndex,
+        finishTime: adjustedFinishTime,
+        easing: plan.easing,
+      );
+    }
+
+    final List<SimulationPlan> finalPlans = rawPlans.map((plan) => finalById[plan.streamId] ?? plan).toList();
+
     setState(() {
-      _speedMap = nextSpeeds;
+      _plans = finalPlans;
       _progress = nextProgress;
-      _finishedHorses = [];
-      _elapsed = 0;
+      _elapsed = 0.0;
       _gameState = 'countdown';
       _countdown = 3;
     });
@@ -167,22 +198,19 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
   }
 
   void _startSimulation() {
-    _elapsedTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      if (!mounted) return;
-      setState(() {
-        _elapsed = max(0, DateTime.now().difference(_startTime!).inSeconds);
-      });
-    });
-
-    final rand = Random();
     _simulationTimer = Timer.periodic(const Duration(milliseconds: 90), (timer) {
       if (!mounted) return;
+      if (_startTime == null) return;
+
+      final elapsedMs = DateTime.now().difference(_startTime!).inMilliseconds;
+      final elapsedSec = elapsedMs / 1000.0;
       
       bool allFinished = true;
       final newProgress = Map<String, double>.from(_progress);
       
-      for (int i = 0; i < _streamHorses.length; i++) {
-        final id = _getStreamHorseId(_streamHorses[i], i);
+      for (int i = 0; i < _plans.length; i++) {
+        final plan = _plans[i];
+        final id = plan.streamId;
         double current = newProgress[id] ?? 0;
         
         if (current >= 100) {
@@ -191,28 +219,15 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
         }
         
         allFinished = false;
-        final speed = _speedMap[id] ?? 1.0;
-        final step = (rand.nextDouble() * 0.9 + 0.15) * speed * 0.35;
-        final nextValue = min(100.0, current + step);
+        final nextValue = getProgressAtElapsed(plan, elapsedSec);
         newProgress[id] = nextValue;
-        
-        if (nextValue >= 100) {
-          final finishTime = (DateTime.now().difference(_startTime!).inMilliseconds / 1000).toStringAsFixed(2);
-          if (!_finishedHorses.any((h) => h['streamId'] == id)) {
-            _finishedHorses.add({
-              'horse': _streamHorses[i],
-              'finishTime': finishTime,
-              'streamId': id,
-            });
-          }
-        }
       }
       
       setState(() {
+        _elapsed = elapsedSec;
         _progress = newProgress;
         if (allFinished) {
           _gameState = 'finished';
-          _elapsedTimer?.cancel();
           timer.cancel();
         }
       });
@@ -249,35 +264,40 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
 
   void _closeStream() {
     _countdownTimer?.cancel();
-    _elapsedTimer?.cancel();
     _simulationTimer?.cancel();
     setState(() {
       _selectedRace = null;
       _streamHorses = [];
       _progress = {};
-      _finishedHorses = [];
     });
   }
 
   List<Map<String, dynamic>> _getRankedHorses() {
     final list = List<Map<String, dynamic>>.generate(_streamHorses.length, (index) {
       final id = _getStreamHorseId(_streamHorses[index], index);
-      final finishIndex = _finishedHorses.indexWhere((h) => h['streamId'] == id);
+      final planIndex = _plans.indexWhere((p) => p.streamId == id);
+      final plan = planIndex >= 0 ? _plans[planIndex] : null;
+      final finished = plan != null && _elapsed >= plan.finishTime;
+
       return {
         'horse': _streamHorses[index],
         'id': id,
         'progress': _progress[id] ?? 0.0,
-        'finishIndex': finishIndex,
-        'finishTime': finishIndex >= 0 ? _finishedHorses[finishIndex]['finishTime'] : null,
+        'finished': finished,
+        'finishTime': finished ? plan.finishTime.toStringAsFixed(2) : null,
         'originalIndex': index,
       };
     });
     
     list.sort((a, b) {
-      if (a['finishIndex'] >= 0 && b['finishIndex'] >= 0) return (a['finishIndex'] as int).compareTo(b['finishIndex'] as int);
-      if (a['finishIndex'] >= 0) return -1;
-      if (b['finishIndex'] >= 0) return 1;
-      return (b['progress'] as double).compareTo(a['progress'] as double);
+      final aId = a['id'];
+      final bId = b['id'];
+      final aPlan = _plans.firstWhere((p) => p.streamId == aId, orElse: () => SimulationPlan(streamId: aId, laneIndex: -1, finishTime: double.maxFinite, easing: 1));
+      final bPlan = _plans.firstWhere((p) => p.streamId == bId, orElse: () => SimulationPlan(streamId: bId, laneIndex: -1, finishTime: double.maxFinite, easing: 1));
+      
+      final finishDiff = aPlan.finishTime.compareTo(bPlan.finishTime);
+      if (finishDiff != 0) return finishDiff;
+      return aId.compareTo(bId);
     });
     return list;
   }
@@ -436,7 +456,7 @@ class _LiveStreamScreenState extends State<LiveStreamScreen> {
                       children: [
                         Text(_selectedRace?.name ?? 'Livestream', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
                         const SizedBox(height: 4),
-                        Text(_gameState == 'finished' ? 'Đã kết thúc - ${_selectedRace?.distance}m' : '${_elapsed}s - ${_selectedRace?.distance}m', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                        Text(_gameState == 'finished' ? 'Đã kết thúc - ${_selectedRace?.distance}m' : '${_elapsed.floor()}s - ${_selectedRace?.distance}m', style: const TextStyle(color: Colors.white54, fontSize: 12)),
                       ],
                     ),
                   ),
@@ -797,4 +817,55 @@ class OvalTrackPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant OvalTrackPainter oldDelegate) => true;
+}
+
+class SimulationPlan {
+  final String streamId;
+  final int laneIndex;
+  final double finishTime;
+  final double easing;
+
+  SimulationPlan({
+    required this.streamId,
+    required this.laneIndex,
+    required this.finishTime,
+    required this.easing,
+  });
+}
+
+int _multiply32(int a, int b) {
+  int aLow = a & 0xFFFF;
+  int aHigh = (a >> 16) & 0xFFFF;
+  int bLow = b & 0xFFFF;
+  int bHigh = (b >> 16) & 0xFFFF;
+  
+  int term1 = aLow * bLow;
+  int term2 = (((aHigh * bLow) + (aLow * bHigh)) & 0xFFFF) << 16;
+  return (term1 + term2) & 0xFFFFFFFF;
+}
+
+int hashString(String value) {
+  int hash = 2166136261;
+  for (int i = 0; i < value.length; i++) {
+    hash ^= value.codeUnitAt(i);
+    hash = _multiply32(hash, 16777619);
+  }
+  return hash;
+}
+
+double seededUnit(String seed) {
+  return hashString(seed) / 4294967295.0;
+}
+
+double round2(double value) {
+  return (value * 100).round() / 100.0;
+}
+
+double getProgressAtElapsed(SimulationPlan plan, double elapsedSec) {
+  if (elapsedSec <= 0) return 0.0;
+  if (elapsedSec >= plan.finishTime) return 100.0;
+  
+  double t = (elapsedSec / plan.finishTime).clamp(0.0, 1.0);
+  double progress = 100.0 * (1.0 - pow(1.0 - t, plan.easing));
+  return progress.clamp(0.0, 99.9);
 }

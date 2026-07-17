@@ -8,12 +8,12 @@ import '../../screens/admin_users_screen.dart';
 import '../../screens/home_screen.dart';
 import '../../screens/horses_screen.dart';
 import '../../screens/invites_screen.dart';
-import '../../screens/leaderboard_screen.dart';
+import '../../screens/spectator/leaderboard_screen.dart';
 import '../../screens/login_screen.dart';
 import '../../screens/notifications_screen.dart';
-import '../../screens/place_prediction_screen.dart';
-import '../../screens/predictions_screen.dart';
-import '../../screens/race_results_screen.dart';
+import '../../screens/spectator/place_prediction_screen.dart';
+import '../../screens/spectator/predictions_screen.dart';
+import '../../screens/spectator/race_results_screen.dart';
 import '../../screens/races_screen.dart';
 import '../../screens/referee_races_screen.dart';
 import '../../screens/referee_report_screen.dart';
@@ -22,7 +22,7 @@ import '../../screens/tournaments_screen.dart';
 import '../../screens/tournament_detail_screen.dart';
 import '../../screens/welcome_screen.dart';
 import '../../screens/jockey_schedule_screen.dart';
-import '../../screens/livestream_screen.dart';
+import '../../screens/spectator/livestream_screen.dart';
 import '../../screens/profile_screen.dart';
 
 typedef AppRouter = GoRouter;
@@ -92,7 +92,7 @@ AppRouter createAppRouter(AuthController auth, WalletService walletService) {
       GoRoute(
         path: '/predictions',
         name: 'Predictions',
-        builder: (context, state) => PredictionsScreen(api: auth.apiService),
+        builder: (context, state) => PredictionsScreen(api: auth.apiService, walletService: walletService),
       ),
       GoRoute(
         path: '/place-prediction',

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../core/api/api_service.dart';
-import '../core/models/app_models.dart';
-import '../ui/app_theme.dart';
-import '../ui/app_widgets.dart';
+import '../../core/api/api_service.dart';
+import '../../core/models/app_models.dart';
+import '../../ui/app_theme.dart';
+import '../../ui/app_widgets.dart';
 
 class RaceResultsScreen extends StatefulWidget {
   const RaceResultsScreen({super.key, required this.api});

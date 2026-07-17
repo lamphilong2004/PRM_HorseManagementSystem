@@ -39,6 +39,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         setState(() {
           _profile = profileData['user'] ?? profileData;
+          if (_profile != null && _profile!.containsKey('profile')) {
+            final profileMap = _profile!['profile'];
+            if (profileMap is Map && profileMap.containsKey('points')) {
+              final points = int.tryParse(profileMap['points'].toString()) ?? 0;
+              widget.walletService.setBalance(points);
+            }
+          }
         });
       }
     } catch (e) {
