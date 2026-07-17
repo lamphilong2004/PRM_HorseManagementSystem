@@ -59,6 +59,12 @@ class WalletService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setBalance(int amount) async {
+    _balance = amount;
+    await _storage.write(key: _keyBalance, value: _balance.toString());
+    notifyListeners();
+  }
+
   Future<List<String>> getSettledPredictionIds() async {
     final raw = await _storage.read(key: _keySettled);
     if (raw == null) return [];

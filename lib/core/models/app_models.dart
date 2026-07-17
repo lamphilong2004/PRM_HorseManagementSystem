@@ -194,6 +194,7 @@ class Prediction {
     this.prizeAmount,
     this.raceName,
     this.createdAt,
+    this.predictedPosition,
   });
 
   final String id;
@@ -204,6 +205,7 @@ class Prediction {
   final num? prizeAmount;
   final String? raceName;
   final String? createdAt;
+  final int? predictedPosition;
 
   factory Prediction.fromApi(Map<String, dynamic> json) {
     final race = json['raceId'];
@@ -226,6 +228,7 @@ class Prediction {
       prizeAmount: json['prizeAmount'] is num ? json['prizeAmount'] as num : (json['payout'] is num ? json['payout'] as num : null),
       raceName: race is Map ? _stringValue(race['name']) : '',
       createdAt: _stringValue(json['createdAt']),
+      predictedPosition: json['predictedPosition'] is num ? (json['predictedPosition'] as num).toInt() : null,
     );
   }
 }

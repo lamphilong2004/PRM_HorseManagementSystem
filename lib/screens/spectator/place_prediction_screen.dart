@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../core/api/api_client.dart';
-import '../core/api/api_service.dart';
-import '../core/models/app_models.dart';
-import '../core/services/wallet_service.dart';
-import '../ui/app_theme.dart';
+import '../../core/api/api_client.dart';
+import '../../core/api/api_service.dart';
+import '../../core/models/app_models.dart';
+import '../../core/services/wallet_service.dart';
+import '../../ui/app_theme.dart';
 import 'package:intl/intl.dart';
-import '../ui/app_widgets.dart';
+import '../../ui/app_widgets.dart';
 
 class PlacePredictionScreen extends StatefulWidget {
   const PlacePredictionScreen({super.key, required this.api, required this.walletService});

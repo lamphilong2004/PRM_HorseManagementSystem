@@ -1,8 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
-import '../core/api/api_client.dart';
-import '../core/api/api_service.dart';
 import '../core/auth/auth_controller.dart';
 import '../core/models/app_models.dart';
 import '../core/services/wallet_service.dart';
@@ -16,13 +14,13 @@ import 'admin_users_screen.dart';
 import 'horses_screen.dart';
 import 'invites_screen.dart';
 import 'notifications_screen.dart';
-import 'predictions_screen.dart';
-import 'race_results_screen.dart';
+import 'spectator/predictions_screen.dart';
+import 'spectator/race_results_screen.dart';
 import 'races_screen.dart';
 import 'referee_races_screen.dart';
 import 'tournaments_screen.dart';
 import 'jockey_schedule_screen.dart';
-import 'livestream_screen.dart';
+import 'spectator/livestream_screen.dart';
 import 'profile_screen.dart';
 
 // ── Nav item config per role ───────────────────────────────
@@ -94,10 +92,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-  String _searchQuery = '';
   List<Tournament>? _tournaments;
   List<Race>? _races;
-  bool _loadingData = false;
 
   @override
   void initState() {
@@ -110,26 +106,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _runAutoClaim() async {
     try {
-      final predictions = await widget.auth.apiService.getPredictions();
-      final settledIds = await widget.walletService.getSettledPredictionIds();
-      
-      for (final p in predictions) {
-        if (p.status.toUpperCase() == 'WON') {
-          if (!settledIds.contains(p.id)) {
-            final bet = (p.betAmount ?? 0).toDouble();
-            if (bet > 0) {
-              final winnings = (bet * 1.8).toInt();
-              await widget.walletService.addBalance(winnings);
-              await widget.walletService.markPredictionAsSettled(p.id);
-            }
-          }
+      final profileData = await widget.auth.apiService.getMyProfile();
+      final user = profileData['user'] ?? profileData;
+      if (user != null && user.containsKey('profile')) {
+        final profileMap = user['profile'];
+        if (profileMap is Map && profileMap.containsKey('points')) {
+          final points = int.tryParse(profileMap['points'].toString()) ?? 0;
+          await widget.walletService.setBalance(points);
         }
       }
     } catch (_) {}
   }
 
   void _fetchData() {
-    setState(() => _loadingData = true);
+    if (widget.auth.session?.user.role == Role.spectator) {
+      _runAutoClaim();
+    }
     Future.wait([
       widget.auth.apiService.getTournaments(),
       widget.auth.apiService.getRaces(),
@@ -138,7 +130,6 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _tournaments = results[0] as List<Tournament>;
           _races = results[1] as List<Race>;
-          _loadingData = false;
         });
       }
     }).catchError((_) {
@@ -146,7 +137,6 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _tournaments = [];
           _races = [];
-          _loadingData = false;
         });
       }
     });
@@ -295,7 +285,7 @@ class _HomeScreenState extends State<HomeScreen> {
       'Tournaments'    => TournamentsScreen(api: api),
       'Races'          => RacesScreen(api: api),
       'Livestream'     => LiveStreamScreen(api: api),
-      'Predictions'    => PredictionsScreen(api: api),
+      'Predictions'    => PredictionsScreen(api: api, walletService: widget.walletService),
       'Profile'        => ProfileScreen(auth: widget.auth, walletService: widget.walletService),
       'RaceResults'    => RaceResultsScreen(api: api),
       'Notifications'  => NotificationsScreen(api: api),
@@ -310,19 +300,120 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Home Dashboard (Search Bar + Tournaments list) ───────────
 
+  String _roleLabel(Role role) {
+    return switch (role) {
+      Role.spectator => 'Khán giả',
+      Role.owner => 'Chủ ngựa',
+      Role.jockey => 'Jockey',
+      Role.referee => 'Trọng tài',
+      Role.admin => 'Quản trị',
+    };
+  }
+
   Widget _buildHomeDashboard(BuildContext context, User user) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (user.role == Role.spectator) _buildWalletCard(context),
-        _buildSearchBar(context),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: () async => _fetchData(),
-            child: _buildDashboardContent(context, user),
+    final bool isSpectator = user.role == Role.spectator;
+    final bool isOwner = user.role == Role.owner;
+    final bool isJockey = user.role == Role.jockey;
+
+    // Filter public tournaments
+    final activeTournaments = (_tournaments ?? []).take(3).toList();
+
+    // Filter open races
+    final openRaces = (_races ?? []).where((r) => 
+      ['SCHEDULED', 'ONGOING', 'LIVE', 'PENDING'].contains(r.status.toUpperCase())
+    ).take(5).toList();
+
+    // Live count
+    final liveCount = (_races ?? []).where((r) => 
+      ['ONGOING', 'LIVE', 'RUNNING'].contains(r.status.toUpperCase())
+    ).length;
+
+    return RefreshIndicator(
+      onRefresh: () async => _fetchData(),
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        children: [
+          // Greeting & Role header
+          Text(
+            'Dashboard',
+            style: context.typography.h1.copyWith(fontSize: 26, fontWeight: FontWeight.bold),
           ),
-        ),
-      ],
+          const SizedBox(height: 4),
+          Text(
+            'Xin chào, ${user.name} • ${_roleLabel(user.role)}',
+            style: context.typography.bodyMuted,
+          ),
+          const SizedBox(height: 16),
+
+          if (isSpectator) ...[
+            // Virtual Points Wallet Card (Expo Blue Card style)
+            _buildWalletCard(context),
+            const SizedBox(height: 16),
+
+            // StatTiles Row (Trophy, Flag, Radio icons)
+            Row(
+              children: [
+                Expanded(child: _buildStatTile(context, Icons.emoji_events_rounded, 'Giải mở', '${activeTournaments.length}', Colors.blue)),
+                const SizedBox(width: 8),
+                Expanded(child: _buildStatTile(context, Icons.flag_rounded, 'Đua mở', '${openRaces.length}', const Color(0xFF10B981))),
+                const SizedBox(width: 8),
+                Expanded(child: _buildStatTile(context, Icons.radio_button_checked_rounded, 'Live', '$liveCount', const Color(0xFFF43F5E))),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Quick Access Grid ("Truy cập nhanh")
+            Text('Truy cập nhanh', style: context.typography.h2.copyWith(fontSize: 18)),
+            const SizedBox(height: 12),
+            _buildQuickAccessGrid(context),
+            const SizedBox(height: 24),
+
+            // Featured Tournaments ("Giải đấu nổi bật")
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Giải đấu nổi bật', style: context.typography.h2.copyWith(fontSize: 18)),
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => TournamentsScreen(api: widget.auth.apiService)));
+                  },
+                  child: const Text('Xem tất cả', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (activeTournaments.isEmpty)
+              _buildEmptyState('Chưa có giải đang hoạt động', Icons.emoji_events_outlined)
+            else
+              ...activeTournaments.map((t) => _buildTournamentCard(context, t)),
+            const SizedBox(height: 16),
+
+            // Predictable Races ("Cuộc đua có thể dự đoán")
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Cuộc đua có thể dự đoán', style: context.typography.h2.copyWith(fontSize: 18)),
+                TextButton(
+                  onPressed: () {
+                    setState(() => _selectedIndex = 3);
+                  },
+                  child: const Text('Đặt cược', style: TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (openRaces.isEmpty)
+              _buildEmptyState('Chưa có cuộc đua mở dự đoán', Icons.flag_outlined)
+            else
+              ...openRaces.map((r) => _buildRaceCard(context, r)),
+          ] else ...[
+            // Non-spectator Tasks
+            Text('Tác vụ chính', style: context.typography.h2.copyWith(fontSize: 18)),
+            const SizedBox(height: 12),
+            ..._buildNonSpectatorTasks(context, isOwner, isJockey),
+          ],
+        ],
+      ),
     );
   }
 
@@ -332,13 +423,12 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, _) {
         final balanceFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'Điểm');
         return Container(
-          margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [context.colors.primary, context.colors.primaryDark],
             ),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
                 color: context.colors.primary.withValues(alpha: 0.3),
@@ -350,24 +440,29 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('SỐ DƯ ĐIỂM ẢO', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-                  const SizedBox(height: 4),
-                  Text(
-                    balanceFormatter.format(widget.walletService.balance),
-                    style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('SỐ DƯ ĐIỂM ẢO', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                    const SizedBox(height: 4),
+                    Text(
+                      balanceFormatter.format(widget.walletService.balance),
+                      style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('Dùng để đặt dự đoán trong các cuộc đua đang mở.', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12)),
+                  ],
+                ),
               ),
+              const SizedBox(width: 12),
               Container(
-                padding: const EdgeInsets.all(8),
+                width: 64, height: 64,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.2),
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(24),
                 ),
-                child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 28),
+                child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 32),
               ),
             ],
           ),
@@ -376,543 +471,292 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSearchBar(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: context.isDark ? const Color(0x0AFFFFFF) : context.colors.surface2,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: context.colors.border.withValues(alpha: 0.3)),
-        ),
-        child: TextField(
-          onChanged: (val) => setState(() => _searchQuery = val.trim()),
-          style: context.typography.body,
-          decoration: InputDecoration(
-            hintText: 'Search races, tracks, or tournaments...',
-            hintStyle: context.typography.bodyMuted,
-            prefixIcon: Icon(Icons.search_rounded, size: 22, color: context.colors.muted),
-            suffixIcon: _searchQuery.isNotEmpty
-                ? IconButton(
-                    icon: Icon(Icons.clear_rounded, size: 18, color: context.colors.muted),
-                    onPressed: () {
-                      FocusScope.of(context).unfocus();
-                      setState(() => _searchQuery = '');
-                    },
-                  )
-                : null,
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDashboardContent(BuildContext context, User user) {
-    if (_loadingData && (_tournaments == null || _races == null)) {
-      return ListView.builder(
-        padding: const EdgeInsets.all(20),
-        itemCount: 3,
-        itemBuilder: (_, i) => Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: LoadingShimmer(height: 120),
-        ),
-      );
-    }
-
-    final query = _searchQuery.toLowerCase();
-    final filteredTournaments = _tournaments?.where((t) {
-      final matchName = t.name.toLowerCase().contains(query);
-      final matchLocation = t.location.toLowerCase().contains(query);
-      
-      final hasMatchingRace = _races?.any((r) => 
-        r.tournamentId == t.id && r.name.toLowerCase().contains(query)
-      ) ?? false;
-      
-      return matchName || matchLocation || hasMatchingRace;
-    }).toList() ?? [];
-
-    if (filteredTournaments.isEmpty) {
-      return const EmptyState(
-        icon: Icons.search_off_rounded,
-        title: 'Không tìm thấy giải đấu',
-        subtitle: 'Thử tìm kiếm bằng từ khóa khác hoặc kéo để tải lại.',
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      itemCount: filteredTournaments.length,
-      itemBuilder: (context, index) {
-        final tournament = filteredTournaments[index];
-        final tournamentRaces = _races?.where((r) => 
-          r.tournamentId == tournament.id && 
-          (query.isEmpty || r.name.toLowerCase().contains(query) || tournament.name.toLowerCase().contains(query))
-        ).toList() ?? [];
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Tournament Section Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          tournament.name,
-                          style: context.typography.h2.copyWith(fontSize: 20, fontWeight: FontWeight.w700),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(Icons.location_on_outlined, size: 16, color: context.colors.muted),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                tournament.location,
-                                style: context.typography.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1.2),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {},
-                    child: Text('VIEW ALL', style: context.typography.caption.copyWith(color: context.colors.accent, fontWeight: FontWeight.w700)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              
-              // Tournament Races List (Horizontal)
-              if (tournamentRaces.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4, bottom: 8),
-                  child: Text(
-                    'Không có trận đấu nào.',
-                    style: context.typography.bodyMuted.copyWith(fontSize: 14),
-                  ),
-                )
-              else
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  clipBehavior: Clip.none,
-                  child: Row(
-                    children: tournamentRaces.map((race) {
-                      final isPredictable = race.status.toLowerCase() == 'open' || 
-                                           race.status.toLowerCase() == 'active' || 
-                                           race.status.toLowerCase() == 'scheduled';
-                      
-                      return Container(
-                        width: 280,
-                        margin: const EdgeInsets.only(right: 16),
-                        child: GlassCard(
-                          padding: EdgeInsets.zero,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Image Section
-                              Stack(
-                                children: [
-                                  Container(
-                                    height: 160,
-                                    decoration: BoxDecoration(
-                                      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                                      color: context.colors.surface2,
-                                      image: const DecorationImage(
-                                        image: NetworkImage('https://images.unsplash.com/photo-1598974357801-cbca100e65d3?auto=format&fit=crop&q=80&w=800'),
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                                  ),
-                                  Positioned(
-                                    top: 12,
-                                    right: 12,
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(20),
-                                      child: BackdropFilter(
-                                        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                          decoration: BoxDecoration(
-                                            color: isPredictable ? Colors.greenAccent.withValues(alpha: 0.2) : Colors.black45,
-                                            borderRadius: BorderRadius.circular(20),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              if (isPredictable) ...[
-                                                Container(
-                                                  width: 8, height: 8,
-                                                  decoration: const BoxDecoration(color: Colors.greenAccent, shape: BoxShape.circle),
-                                                ),
-                                                const SizedBox(width: 6),
-                                              ],
-                                              Text(
-                                                _translateStatus(race.status).toUpperCase(),
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: isPredictable ? Colors.greenAccent : Colors.white,
-                                                  letterSpacing: 1.2,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              // Content Section
-                              Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      race.name,
-                                      style: context.typography.h3.copyWith(fontSize: 18),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Distance: 1200m • 12 Contenders',
-                                      style: context.typography.bodyMuted.copyWith(fontSize: 13),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    if (isPredictable)
-                                      Container(
-                                        width: double.infinity,
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            colors: [context.colors.primary, context.colors.accent],
-                                          ),
-                                          borderRadius: BorderRadius.circular(8),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: context.colors.primary.withValues(alpha: 0.3),
-                                              blurRadius: 15,
-                                              offset: const Offset(0, 4),
-                                            ),
-                                          ],
-                                        ),
-                                        child: ElevatedButton(
-                                          onPressed: () => _showQuickPredictionDialog(context, race),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.transparent,
-                                            shadowColor: Colors.transparent,
-                                            padding: const EdgeInsets.symmetric(vertical: 14),
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                          ),
-                                          child: const Text(
-                                            'DỰ ĐOÁN',
-                                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.2),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  String _translateStatus(String status) {
-    return switch (status.toLowerCase()) {
-      'pending'   => 'Đang chờ',
-      'open'      => 'Đang mở',
-      'active'    => 'Hoạt động',
-      'completed' => 'Hoàn thành',
-      'approved'  => 'Đã duyệt',
-      'confirmed' => 'Xác nhận',
-      'rejected'  => 'Bị từ chối',
-      'inactive'  => 'Không hoạt động',
-      'cancelled' => 'Đã hủy',
-      'scheduled' => 'Lên lịch',
-      'ongoing'   => 'Đang diễn ra',
-      'won'       => 'Thắng',
-      'lost'      => 'Thua',
-      _           => status,
-    };
-  }
-
-  // ── Show Quick Prediction bottom sheet ────────────────────────
-
-  void _showQuickPredictionDialog(BuildContext context, Race race) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return _QuickPredictionBottomSheet(
-          api: widget.auth.apiService,
-          race: race,
-          walletService: widget.walletService,
-        );
-      },
-    );
-  }
-}
-
-// ── Quick Prediction Bottom Sheet State ───────────────────────
-
-class _QuickPredictionBottomSheet extends StatefulWidget {
-  const _QuickPredictionBottomSheet({required this.api, required this.race, required this.walletService});
-
-  final ApiService api;
-  final Race race;
-  final WalletService walletService;
-
-  @override
-  State<_QuickPredictionBottomSheet> createState() => _QuickPredictionBottomSheetState();
-}
-
-class _QuickPredictionBottomSheetState extends State<_QuickPredictionBottomSheet> {
-  final _betController = TextEditingController();
-  List<RaceHorse> _horses = [];
-  String? _selectedHorseId;
-  bool _loadingHorses = true;
-  bool _submitting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.api.getRaceHorses(widget.race.id).then((items) {
-      if (mounted) {
-        setState(() {
-          _horses = items;
-          _loadingHorses = false;
-        });
-      }
-    }).catchError((_) {
-      if (mounted) {
-        setState(() {
-          _horses = [];
-          _loadingHorses = false;
-        });
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _betController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = context.isDark;
-    
+  Widget _buildStatTile(BuildContext context, IconData icon, String label, String value, Color color) {
     return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0D1626) : Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        border: Border.all(
-          color: isDark ? const Color(0x1AFFFFFF) : const Color(0x1F000000),
-          width: 1,
-        ),
+        color: color.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
       ),
-      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 24),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Drag handle indicator
-            Center(
-              child: Container(
-                width: 48,
-                height: 6,
-                margin: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 6),
+          Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 2),
+          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickAccessGrid(BuildContext context) {
+    final api = widget.auth.apiService;
+    final shortcuts = [
+      _ShortcutItem('Giải đấu', Icons.emoji_events_rounded, Colors.blue, () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => TournamentsScreen(api: api)));
+      }),
+      _ShortcutItem('Cuộc đua', Icons.flag_rounded, Colors.amber.shade700, () {
+        setState(() => _selectedIndex = 1);
+      }),
+      _ShortcutItem('Dự đoán', Icons.analytics_rounded, const Color(0xFF10B981), () {
+        setState(() => _selectedIndex = 3);
+      }),
+      _ShortcutItem('Bảng hạng', Icons.military_tech_rounded, Colors.purple, () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => RaceResultsScreen(api: api)));
+      }),
+      _ShortcutItem('Livestream', Icons.radio_rounded, const Color(0xFFF43F5E), () {
+        setState(() => _selectedIndex = 2);
+      }),
+      _ShortcutItem('Thông báo', Icons.notifications_rounded, Colors.grey.shade700, () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => NotificationsScreen(api: api)));
+      }),
+    ];
+
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 10,
+      mainAxisSpacing: 10,
+      childAspectRatio: 2.0,
+      children: shortcuts.map((s) => GestureDetector(
+        onTap: s.onTap,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: context.colors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: context.colors.border),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38, height: 38,
                 decoration: BoxDecoration(
-                  color: context.colors.border,
-                  borderRadius: BorderRadius.circular(10),
+                  color: s.color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                child: Icon(s.icon, color: s.color, size: 20),
               ),
-            ),
-            Text(
-              'Dự đoán kết quả',
-              style: context.typography.h2.copyWith(fontSize: 24),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              widget.race.name,
-              style: context.typography.bodyMuted,
-            ),
-            const SizedBox(height: 24),
-            
-            if (_loadingHorses)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            else if (_horses.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+              const SizedBox(width: 10),
+              Expanded(
                 child: Text(
-                  'Không có ngựa đua nào tham gia trận này.',
-                  style: context.typography.body,
-                  textAlign: TextAlign.center,
-                ),
-              )
-            else ...[
-              Text('CHỌN NGỰA', style: context.typography.label.copyWith(letterSpacing: 1.2)),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                // ignore: deprecated_member_use
-                initialValue: _selectedHorseId,
-                hint: Text('Chọn một chiến mã', style: context.typography.bodyMuted),
-                style: context.typography.body.copyWith(color: context.colors.text),
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: isDark ? const Color(0x0AFFFFFF) : context.colors.surface2,
-                  border: OutlineInputBorder(
-                    borderRadius: context.radii.base,
-                    borderSide: BorderSide(color: context.colors.border),
-                  ),
-                ),
-                items: _horses.map((h) => DropdownMenuItem<String>(
-                  value: h.id,
-                  child: Text(h.name),
-                )).toList(),
-                onChanged: (val) => setState(() => _selectedHorseId = val),
-              ),
-              const SizedBox(height: 16),
-              
-              Text('MỨC CƯỢC (CREDITS)', style: context.typography.label.copyWith(letterSpacing: 1.2)),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _betController,
-                keyboardType: TextInputType.number,
-                style: context.typography.body,
-                decoration: const InputDecoration(
-                  hintText: '500,000',
-                  prefixIcon: Icon(Icons.attach_money_rounded, size: 18),
+                  s.label,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(height: 32),
-              
-              // Action Buttons
-              Row(
+            ],
+          ),
+        ),
+      )).toList(),
+    );
+  }
+
+  Widget _buildTournamentCard(BuildContext context, Tournament t) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.colors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: context.colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(t.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 4),
+                    Text(t.location.isNotEmpty ? t.location : 'Chưa rõ địa điểm', style: const TextStyle(color: Colors.grey, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ],
+                ),
+              ),
+              const Text(
+                'Giải đấu',
+                style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            DateFormat('dd/MM/yyyy HH:mm').format(DateTime.parse(t.startDate)),
+            style: const TextStyle(color: Colors.grey, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRaceCard(BuildContext context, Race r) {
+    return GestureDetector(
+      onTap: () {
+        if (r.status.toUpperCase() == 'ONGOING') {
+          setState(() => _selectedIndex = 2);
+        } else {
+          setState(() => _selectedIndex = 3);
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: context.colors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: context.colors.border),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        side: BorderSide(color: context.colors.border),
-                      ),
-                      child: Text('CANCEL', style: TextStyle(color: context.colors.muted, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 2,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [context.colors.primary, context.colors.accent],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: context.colors.primary.withValues(alpha: 0.3),
-                            blurRadius: 15,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: ElevatedButton(
-                        onPressed: _submitting || _selectedHorseId == null ? null : _submit,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: _submitting 
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : const Text('SUBMIT PREDICTION', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.2)),
-                      ),
-                    ),
+                  Text(r.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 4),
+                  Text(
+                    DateFormat('dd/MM/yyyy HH:mm').format(DateTime.parse(r.scheduledAt)),
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
                   ),
                 ],
               ),
-            ],
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                r.status.toUpperCase(),
+                style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 10),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _submit() async {
-    final betStr = _betController.text.trim();
-    if (betStr.isEmpty) {
-      await showAppAlert(context, 'Thiếu thông tin', 'Vui lòng nhập số tiền cược.', isError: true);
-      return;
+  Widget _buildEmptyState(String title, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.grey.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 28, color: Colors.grey),
+          const SizedBox(height: 8),
+          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildNonSpectatorTasks(BuildContext context, bool isOwner, bool isJockey) {
+    final api = widget.auth.apiService;
+    final List<Widget> list = [];
+    
+    list.add(_buildTaskCard(
+      context,
+      'Xem Giải Đấu',
+      'Khám phá các giải đấu đua ngựa đang diễn ra, xem chi tiết lịch thi đấu và bảng xếp hạng thành tích.',
+      Icons.emoji_events_rounded,
+      Colors.blue,
+      () => Navigator.push(context, MaterialPageRoute(builder: (_) => TournamentsScreen(api: api))),
+    ));
+    
+    list.add(_buildTaskCard(
+      context,
+      'Xem Cuộc Đua',
+      'Cập nhật danh sách cuộc đua, cự ly, thời gian xuất phát và diễn biến kết quả thi đấu.',
+      Icons.flag_rounded,
+      Colors.amber.shade700,
+      () => setState(() => _selectedIndex = 1),
+    ));
+    
+    if (isOwner) {
+      list.add(_buildTaskCard(
+        context,
+        'Ngựa Của Tôi',
+        'Quản lý đội ngựa thi đấu cá nhân, đăng ký tham gia vòng đua mới và gửi lời mời thuê Jockey.',
+        Icons.pets_rounded,
+        const Color(0xFF10B981),
+        () => setState(() => _selectedIndex = 2),
+      ));
     }
     
-    final bet = int.tryParse(betStr) ?? 0;
-    if (bet < 100000 || bet > 10000000) {
-      await showAppAlert(context, 'Sai hạn mức', 'Tiền cược phải nằm trong khoảng từ 100k đến 10M.', isError: true);
-      return;
+    if (isJockey) {
+      list.add(_buildTaskCard(
+        context,
+        'Lời Mời Của Tôi',
+        'Xem và phản hồi yêu cầu điều khiển ngựa từ chủ ngựa, sau đó theo dõi lịch trình nhận việc.',
+        Icons.mail_rounded,
+        const Color(0xFF10B981),
+        () => setState(() => _selectedIndex = 2),
+      ));
     }
-
-    if (bet > widget.walletService.balance) {
-      await showAppAlert(context, 'Số dư không đủ', 'Bạn chỉ còn ${NumberFormat.currency(locale: 'vi_VN', symbol: 'Điểm').format(widget.walletService.balance)} trong ví.', isError: true);
-      return;
-    }
-
-    setState(() => _submitting = true);
-    try {
-      await widget.api.placePrediction(
-        raceId: widget.race.id,
-        horseId: _selectedHorseId!,
-        betAmount: bet,
-      );
-      
-      // Deduct balance locally
-      await widget.walletService.deductBalance(bet);
-      
-      if (!mounted) return;
-      Navigator.pop(context);
-      await showAppAlert(context, 'Thành công 🎉', 'Dự đoán của bạn đã được đặt.');
-    } catch (error) {
-      if (!mounted) return;
-      final message = error is ApiException ? error.message : 'Không thể đặt dự đoán';
-      await showAppAlert(context, 'Thất bại', message, isError: true);
-    } finally {
-      if (mounted) setState(() => _submitting = false);
-    }
+    
+    return list;
   }
+  
+  Widget _buildTaskCard(BuildContext context, String label, String desc, IconData icon, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: context.colors.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: context.colors.border),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 48, height: 48,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 4),
+                  Text(desc, style: const TextStyle(color: Colors.grey, fontSize: 13, height: 1.3)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+}
+
+class _ShortcutItem {
+  _ShortcutItem(this.label, this.icon, this.color, this.onTap);
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
 }
