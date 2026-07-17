@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../core/auth/auth_controller.dart';
 import '../core/models/app_models.dart';
@@ -182,6 +181,63 @@ class _HomeScreenState extends State<HomeScreen> {
                 onPressed: () {
                   themeNotifier.value = context.isDark ? ThemeMode.light : ThemeMode.dark;
                 },
+              ),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AppBackground(
+                        child: Scaffold(
+                          backgroundColor: Colors.transparent,
+                          appBar: AppBar(
+                            backgroundColor: context.isDark ? const Color(0x9904100C) : const Color(0xB3FFFFFF),
+                            elevation: 0,
+                            scrolledUnderElevation: 0,
+                            flexibleSpace: ClipRect(
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                                child: Container(color: Colors.transparent),
+                              ),
+                            ),
+                            title: Text(
+                              'Thông tin cá nhân',
+                              style: TextStyle(
+                                fontFamily: context.typography.fontFamily,
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                                color: context.colors.text,
+                              ),
+                            ),
+                            leading: IconButton(
+                              icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.colors.text),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                            bottom: PreferredSize(
+                              preferredSize: const Size.fromHeight(1),
+                              child: Container(
+                                height: 1,
+                                color: context.isDark ? context.colors.border : const Color(0x1F000000),
+                              ),
+                            ),
+                          ),
+                          body: ProfileScreen(
+                            auth: widget.auth,
+                            walletService: widget.walletService,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 8.0),
+                  child: UserAvatar(
+                    name: user.name,
+                    role: user.role.value,
+                    size: 32,
+                  ),
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.logout_rounded),
