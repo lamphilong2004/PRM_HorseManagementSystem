@@ -540,52 +540,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(s.icon, color: s.color, size: 20),
-              // Tournament Section Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: user.role == Role.jockey
-                          ? () => context.push('/tournaments/${tournament.id}')
-                          : null,
-                      behavior: HitTestBehavior.opaque,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            tournament.name,
-                            style: context.typography.h2.copyWith(fontSize: 20, fontWeight: FontWeight.w700),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(Icons.location_on_outlined, size: 16, color: context.colors.muted),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  tournament.location,
-                                  style: context.typography.caption.copyWith(fontWeight: FontWeight.w600, letterSpacing: 1.2),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: user.role == Role.jockey
-                        ? () => context.push('/tournaments')
-                        : () {},
-                    child: Text('VIEW ALL', style: context.typography.caption.copyWith(color: context.colors.accent, fontWeight: FontWeight.w700)),
-                  ),
-                ],
               ),
               const SizedBox(width: 10),
               Expanded(
