@@ -4,11 +4,13 @@ import '../core/api/api_service.dart';
 import '../core/models/app_models.dart';
 import '../ui/app_theme.dart';
 import '../ui/app_widgets.dart';
+import 'owner_tournament_registration_sheet.dart' as owner_sheet;
 
 class TournamentsScreen extends StatefulWidget {
-  const TournamentsScreen({super.key, required this.api});
+  const TournamentsScreen({super.key, required this.api, this.role});
 
   final ApiService api;
+  final Role? role;
 
   @override
   State<TournamentsScreen> createState() => _TournamentsScreenState();
@@ -52,7 +54,11 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
       itemCount: _items!.length + 1,
       itemBuilder: (context, index) {
         if (index == 0) return _buildSectionHeader();
-        return _TournamentCard(tournament: _items![index - 1]);
+        return _TournamentCard(
+          tournament: _items![index - 1],
+          api: widget.api,
+          role: widget.role,
+        );
       },
     );
   }
@@ -92,9 +98,11 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
 // ── Tournament Card ───────────────────────────────────────────
 
 class _TournamentCard extends StatelessWidget {
-  const _TournamentCard({required this.tournament});
+  const _TournamentCard({required this.tournament, required this.api, this.role});
 
   final Tournament tournament;
+  final ApiService api;
+  final Role? role;
 
   @override
   Widget build(BuildContext context) {
@@ -168,6 +176,33 @@ class _TournamentCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (role == Role.owner && (tournament.status?.toLowerCase() != 'completed' && tournament.status?.toLowerCase() != 'closed' && tournament.status?.toLowerCase() != 'cancelled')) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (_) => owner_sheet.OwnerTournamentRegistrationSheet(
+                        api: api,
+                        tournament: tournament,
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: context.colors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text('Đăng ký tham gia', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
           ],
         ),
       ),
