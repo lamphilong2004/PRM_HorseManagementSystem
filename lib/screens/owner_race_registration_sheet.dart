@@ -118,54 +118,151 @@ class _SheetState extends State<OwnerRaceRegistrationSheet> {
             ),
             const SizedBox(height: 24),
             
-            Text('Chọn Chiến Mã', style: context.typography.caption),
+            Text('Chọn Chiến Mã', style: context.typography.captionUpper),
             const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              // ignore: deprecated_member_use
-              value: _selectedHorseId,
-              dropdownColor: context.colors.surface,
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: context.colors.surface2,
-                border: OutlineInputBorder(
+            if (_horses!.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: context.colors.surface2,
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+                  border: Border.all(color: context.colors.border),
+                ),
+                child: Center(
+                  child: Text('Bạn chưa có ngựa nào để đăng ký.', style: context.typography.bodyMuted),
+                ),
+              )
+            else
+              SizedBox(
+                height: 110,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _horses!.length,
+                  itemBuilder: (context, index) {
+                    final h = _horses![index];
+                    final isSelected = _selectedHorseId == h.id;
+                    return GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _selectedHorseId = h.id);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 100,
+                        margin: const EdgeInsets.only(right: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isSelected ? context.colors.primaryLight : context.colors.surface2,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected ? context.colors.primary : context.colors.border,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isSelected ? context.colors.primary.withValues(alpha: 0.2) : Colors.transparent,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Text('🏇', style: TextStyle(fontSize: 24)),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              h.name,
+                              style: context.typography.caption.copyWith(
+                                color: isSelected ? context.colors.primary : context.colors.text2,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
-              items: _horses!.map((h) => DropdownMenuItem(
-                value: h.id,
-                child: Text(h.name, style: context.typography.body),
-              )).toList(),
-              onChanged: (val) => setState(() => _selectedHorseId = val),
-              hint: Text('Chọn ngựa của bạn', style: context.typography.bodyMuted),
-            ),
             const SizedBox(height: 16),
 
-            Text('Mời Jockey (Kỵ Sĩ)', style: context.typography.caption),
+            Text('Mời Kỵ Sĩ (Jockey)', style: context.typography.captionUpper),
             const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              // ignore: deprecated_member_use
-              value: _selectedJockeyId,
-              dropdownColor: context.colors.surface,
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: context.colors.surface2,
-                border: OutlineInputBorder(
+            if (_jockeys!.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: context.colors.surface2,
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+                  border: Border.all(color: context.colors.border),
+                ),
+                child: Center(
+                  child: Text('Không có Jockey nào khả dụng.', style: context.typography.bodyMuted),
+                ),
+              )
+            else
+              SizedBox(
+                height: 110,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _jockeys!.length,
+                  itemBuilder: (context, index) {
+                    final j = _jockeys![index];
+                    final id = (j['userId'] ?? j['_id'] ?? j['id'] ?? '').toString();
+                    final name = (j['fullName'] ?? j['name'] ?? 'Unknown').toString();
+                    final isSelected = _selectedJockeyId == id;
+                    
+                    return GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _selectedJockeyId = id);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 100,
+                        margin: const EdgeInsets.only(right: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isSelected ? context.colors.primaryLight : context.colors.surface2,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected ? context.colors.primary : context.colors.border,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isSelected ? context.colors.primary.withValues(alpha: 0.2) : Colors.transparent,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Text('👤', style: TextStyle(fontSize: 24)),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              name,
+                              style: context.typography.caption.copyWith(
+                                color: isSelected ? context.colors.primary : context.colors.text2,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
-              items: _jockeys!.map((j) {
-                final id = j['userId'] ?? j['_id'] ?? j['id'] ?? '';
-                final name = j['fullName'] ?? j['name'] ?? 'Unknown';
-                return DropdownMenuItem(
-                  value: id.toString(),
-                  child: Text(name.toString(), style: context.typography.body),
-                );
-              }).toList(),
-              onChanged: (val) => setState(() => _selectedJockeyId = val),
-              hint: Text('Chọn Jockey cho trận đấu', style: context.typography.bodyMuted),
-            ),
             const SizedBox(height: 32),
 
             ElevatedButton(

@@ -235,6 +235,7 @@ class Registration {
     this.horseName,
     this.jockeyName,
     this.rejectionReason,
+    this.confirmedByOwner = false,
   });
 
   final String id;
@@ -245,21 +246,26 @@ class Registration {
   final String? horseName;
   final String? jockeyName;
   final String? rejectionReason;
+  final bool confirmedByOwner;
 
   factory Registration.fromApi(Map<String, dynamic> json) {
-    final race = json['raceId'] ?? json['race'] ?? json['tournamentId'];
-    final horse = json['horseId'] ?? json['horse'];
-    final jockey = json['jockeyId'] ?? json['jockey'];
+    // Prefer Map objects for rich data (name, etc), fallback to ID strings
+    final race = (json['race'] is Map) ? json['race'] : (json['raceId'] ?? json['race'] ?? json['tournamentId']);
+    final horse = (json['horse'] is Map) ? json['horse'] : (json['horseId'] ?? json['horse']);
+    final jockey = (json['jockey'] is Map) ? json['jockey'] : (json['jockeyId'] ?? json['jockey']);
 
     return Registration(
       id: _stringValue(json['_id'] ?? json['id'] ?? json['registrationId']),
       raceId: race is Map ? _stringValue(race['_id'] ?? race['id']) : _stringValue(race),
       horseId: horse is Map ? _stringValue(horse['_id'] ?? horse['id']) : _stringValue(horse),
-      status: _stringValue(json['status']),
+      status: _stringValue(json['status'] ?? json['registrationStatus'] ?? 'PENDING'),
       raceName: race is Map ? _stringValue(race['name']) : null,
       horseName: horse is Map ? _stringValue(horse['name']) : null,
       jockeyName: jockey is Map ? (jockey['user'] is Map ? _stringValue(jockey['user']['fullName']) : _stringValue(jockey['fullName'])) : null,
       rejectionReason: json['rejectionReason']?.toString(),
+      confirmedByOwner: json['confirmedByOwner'] == true || 
+                        json['status']?.toString().toUpperCase() == 'CONFIRMED' || 
+                        json['registrationStatus']?.toString().toUpperCase() == 'CONFIRMED',
     );
   }
 }

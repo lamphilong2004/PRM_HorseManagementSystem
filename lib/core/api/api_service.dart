@@ -84,18 +84,77 @@ class ApiService {
   }
 
   Future<List<Registration>> getOwnerRegistrations() async {
-    try {
-      final response = await _client.get('/registrations/me');
-      return _extractList(response.data, null).map(Registration.fromApi).toList();
-    } catch (e) {
-      // Fallback if /registrations/me doesn't exist but registrations does
-      final response = await _client.get('/registrations');
-      return _extractList(response.data, null).map(Registration.fromApi).toList();
+    final horses = await getHorses();
+    final races = await getRaces();
+    
+    final myHorseIds = horses.map((h) => h.id).toSet();
+    final List<Registration> allRegs = [];
+    
+    for (final race in races) {
+      try {
+        final response = await _client.get('/races/${race.id}/horses');
+        final raw = response.data;
+        List<dynamic> list;
+        if (raw is List) {
+          list = raw;
+        } else if (raw is Map) {
+          list = raw['horses'] ?? raw['data'] ?? [];
+        } else {
+          list = [];
+        }
+        
+        for (final h in list) {
+          if (h is! Map) continue;
+          
+          // Handle horseId as Object or String (mirrors web getRaceHorses)
+          dynamic rawHorseId;
+          if (h['horse'] != null && h['horse'] is Map) {
+            rawHorseId = h['horse']['_id'] ?? h['horse']['id'];
+          } else if (h['horseId'] != null && h['horseId'] is Map) {
+            rawHorseId = h['horseId']['_id'] ?? h['horseId']['id'];
+          } else {
+            rawHorseId = h['horseId'] ?? h['horse'] ?? h['_id'] ?? h['id'];
+          }
+          final horseId = rawHorseId?.toString().trim() ?? '';
+          
+          if (myHorseIds.contains(horseId)) {
+            final matchedHorse = horses.firstWhere((horse) => horse.id == horseId);
+            
+            // Get horse name from nested horse object or matched horse
+            String? horseName;
+            if (h['horse'] is Map) {
+              horseName = h['horse']['name']?.toString();
+            }
+            horseName ??= matchedHorse.name;
+            
+            // Get status (mirrors web: registrationStatus || status || 'PENDING')
+            final status = (h['registrationStatus'] ?? h['status'] ?? 'PENDING').toString();
+            
+            final regMap = <String, dynamic>{
+              '_id': h['registrationId'] ?? h['_id'] ?? h['id'] ?? '',
+              'id': h['registrationId'] ?? h['_id'] ?? h['id'] ?? '',
+              'horseId': horseId,
+              'horse': {'id': horseId, '_id': horseId, 'name': horseName},
+              'raceId': race.id,
+              'race': {'id': race.id, '_id': race.id, 'name': race.name},
+              'status': status,
+              'confirmedByOwner': h['confirmedByOwner'],
+              'rejectionReason': h['rejectionReason'],
+              'jockeyId': h['jockeyId'],
+              'jockey': h['jockey'],
+            };
+            allRegs.add(Registration.fromApi(regMap));
+          }
+        }
+      } catch (e) {
+        // Ignore individual race errors
+      }
     }
+    return allRegs;
   }
 
-  Future<dynamic> confirmRaceParticipation(String registrationId) async {
-    final response = await _client.post('/registrations/$registrationId/confirm', {});
+  Future<dynamic> confirmRaceParticipation(String horseId, String raceId) async {
+    final response = await _client.patch('/horses/me/$horseId/confirm-race/$raceId');
     return response.data;
   }
 
@@ -127,8 +186,9 @@ class ApiService {
   }
 
   Future<List<Map<String, dynamic>>> searchJockeys(String? query) async {
-    final q = query != null && query.isNotEmpty ? '?search=$query' : '';
-    final response = await _client.get('/jockeys$q');
+    String path = '/jockeys?limit=100&status=AVAILABLE';
+    if (query != null && query.isNotEmpty) path += '&search=$query';
+    final response = await _client.get(path);
     var list = _extractList(response.data, 'jockeys');
     if (list.isEmpty) list = _extractList(response.data, 'data');
     if (list.isEmpty) list = _extractList(response.data, null);
@@ -136,7 +196,7 @@ class ApiService {
   }
 
   Future<List<Map<String, dynamic>>> getAvailableJockeys() async {
-    final response = await _client.get('/jockeys');
+    final response = await _client.get('/jockeys?limit=100&status=AVAILABLE');
     var list = _extractList(response.data, 'jockeys');
     if (list.isEmpty) list = _extractList(response.data, 'data');
     if (list.isEmpty) list = _extractList(response.data, null);
@@ -317,9 +377,18 @@ class ApiService {
   }
 
   List<Map<String, dynamic>> _extractList(dynamic data, String? envelopeKey) {
-    final raw = data is Map && envelopeKey != null
-        ? data[envelopeKey] ?? data
-        : data;
+    dynamic raw = data;
+    if (data is Map) {
+      if (envelopeKey != null && data.containsKey(envelopeKey)) {
+        raw = data[envelopeKey];
+      } else if (data.containsKey('data')) {
+        raw = data['data'];
+      } else if (data.containsKey('items')) {
+        raw = data['items'];
+      } else if (data.containsKey('tournaments')) {
+        raw = data['tournaments'];
+      }
+    }
     if (raw is! List) return [];
     return raw
         .whereType<Map>()

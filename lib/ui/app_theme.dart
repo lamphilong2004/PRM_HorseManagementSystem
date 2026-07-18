@@ -193,9 +193,9 @@ class AppRoleColors {
 const _colorsDark = AppColorsExtension(
   bg: Color(0xFF04100C),
   bg2: Color(0xFF060E18),
-  surface: Color(0x260D1626),
-  surface2: Color(0x99162032),
-  surface3: Color(0x8C1E293B),
+  surface: Color(0xFF101928),
+  surface2: Color(0xFF1A2436),
+  surface3: Color(0xFF233044),
   text: Color(0xFFFFFFFF),
   text2: Color(0xFFF8FAFC),
   muted: Color(0xB8FFFFFF),

@@ -48,6 +48,7 @@ const _spectatorNav = [
 
 const _ownerNav = [
   _NavItem(routeName: 'HomeDashboard',  label: 'Trang chủ',   icon: Icons.home_outlined,              activeIcon: Icons.home),
+  _NavItem(routeName: 'Races',          label: 'Cuộc đua',    icon: Icons.flag_outlined,               activeIcon: Icons.flag),
   _NavItem(routeName: 'Tournaments',    label: 'Giải đấu',    icon: Icons.emoji_events_outlined,       activeIcon: Icons.emoji_events),
   _NavItem(routeName: 'Horses',         label: 'Ngựa đua',     icon: Icons.pets_outlined,               activeIcon: Icons.pets),
 ];
@@ -742,7 +743,14 @@ class _HomeScreenState extends State<HomeScreen> {
       'Cập nhật danh sách cuộc đua, cự ly, thời gian xuất phát và diễn biến kết quả thi đấu.',
       Icons.flag_rounded,
       Colors.amber.shade700,
-      () => setState(() => _selectedIndex = 1),
+      () {
+        final role = widget.auth.session?.user.role;
+        if (isOwner || role == Role.referee || role == Role.admin) {
+          setState(() => _selectedIndex = 1);
+        } else {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => RacesScreen(api: api, role: role)));
+        }
+      },
     ));
     
     if (isOwner) {
@@ -752,7 +760,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'Quản lý đội ngựa thi đấu cá nhân, đăng ký tham gia vòng đua mới và gửi lời mời thuê Jockey.',
         Icons.pets_rounded,
         const Color(0xFF10B981),
-        () => setState(() => _selectedIndex = 2),
+        () => setState(() => _selectedIndex = 3),
       ));
     }
     

@@ -5,7 +5,6 @@ import '../ui/app_theme.dart';
 
 // Tabs
 import 'owner_tabs/owner_horses_tab.dart';
-import 'owner_tabs/owner_registration_tab.dart';
 import 'owner_tabs/owner_hire_jockey_tab.dart';
 import 'owner_tabs/owner_invitations_tab.dart';
 import 'owner_tabs/owner_history_tab.dart';
@@ -23,7 +22,7 @@ class _HorsesScreenState extends State<HorsesScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 5,
+      length: 4,
       child: Scaffold(
         backgroundColor: context.colors.bg,
         appBar: AppBar(
@@ -39,7 +38,6 @@ class _HorsesScreenState extends State<HorsesScreen> {
             tabAlignment: TabAlignment.start,
             tabs: const [
               Tab(text: 'Ngựa của tôi'),
-              Tab(text: 'Đăng ký đua'),
               Tab(text: 'Thuê nài ngựa'),
               Tab(text: 'Lời mời'),
               Tab(text: 'Lịch sử'),
@@ -49,7 +47,6 @@ class _HorsesScreenState extends State<HorsesScreen> {
         body: TabBarView(
           children: [
             OwnerHorsesTab(api: widget.api),
-            OwnerRegistrationTab(api: widget.api),
             OwnerHireJockeyTab(api: widget.api),
             OwnerInvitationsTab(api: widget.api),
             OwnerHistoryTab(api: widget.api),

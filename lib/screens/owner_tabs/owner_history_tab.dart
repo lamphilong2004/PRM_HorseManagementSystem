@@ -26,21 +26,12 @@ class _OwnerHistoryTabState extends State<OwnerHistoryTab> {
     setState(() => _registrations = null);
     widget.api.getOwnerRegistrations().then((items) {
       if (mounted) setState(() => _registrations = items);
-    }).catchError((_) {
-      if (mounted) setState(() => _registrations = []);
-    });
-  }
-
-  void _confirmParticipation(String regId) async {
-    try {
-      await widget.api.confirmRaceParticipation(regId);
+    }).catchError((e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Xác nhận tham gia thành công')));
-        _load();
+        setState(() => _registrations = []);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
       }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
-    }
+    });
   }
 
   @override
@@ -87,7 +78,6 @@ class _OwnerHistoryTabState extends State<OwnerHistoryTab> {
             );
           }
           final reg = _registrations![index - 1];
-          final isApproved = reg.status.toUpperCase() == 'APPROVED';
           final isRejected = reg.status.toUpperCase() == 'REJECTED';
           
           return Padding(
@@ -121,8 +111,8 @@ class _OwnerHistoryTabState extends State<OwnerHistoryTab> {
                         ),
                       ),
                       StatusBadge(
-                        label: _translateStatus(reg.status),
-                        variant: StatusBadge.fromStatus(reg.status),
+                        label: _translateStatus(reg.confirmedByOwner ? 'confirmed' : reg.status),
+                        variant: StatusBadge.fromStatus(reg.confirmedByOwner ? 'confirmed' : reg.status),
                       ),
                     ],
                   ),
@@ -140,18 +130,6 @@ class _OwnerHistoryTabState extends State<OwnerHistoryTab> {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
                       child: Text('Lý do từ chối: ${reg.rejectionReason}', style: context.typography.caption.copyWith(color: Colors.red)),
-                    ),
-                  ],
-                  if (isApproved) ...[
-                    const SizedBox(height: 14),
-                    ElevatedButton(
-                      onPressed: () => _confirmParticipation(reg.id),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: context.colors.primary,
-                        minimumSize: const Size(double.infinity, 44),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: const Text('Xác nhận tham gia đua', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ],
