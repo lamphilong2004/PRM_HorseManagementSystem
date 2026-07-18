@@ -26,9 +26,8 @@ class _OwnerHireJockeyTabState extends State<OwnerHireJockeyTab> {
   void _load() {
     setState(() => _registrations = null);
     widget.api.getOwnerRegistrations().then((items) {
-      // Typically you can only hire a jockey if the registration is approved or pending
-      // And we might only show those that need a jockey (though they can re-hire).
-      final valid = items.where((r) => r.status.toUpperCase() != 'REJECTED').toList();
+      // Only allow hiring a jockey if the registration is confirmed by the owner
+      final valid = items.where((r) => r.status.toUpperCase() == 'CONFIRMED' || r.status.toUpperCase() == 'APPROVED').toList();
       if (mounted) setState(() => _registrations = valid);
     }).catchError((_) {
       if (mounted) setState(() => _registrations = []);
@@ -59,8 +58,8 @@ class _OwnerHireJockeyTabState extends State<OwnerHireJockeyTab> {
     if (_registrations!.isEmpty) {
       return const EmptyState(
         icon: Icons.person_search_outlined,
-        title: 'Chưa có ngựa thi đấu',
-        subtitle: 'Bạn cần đăng ký ngựa vào giải đua trước khi thuê nài ngựa.',
+        title: 'Chưa có ngựa sẵn sàng',
+        subtitle: 'Bạn cần xác nhận tham gia đua trong tab Lịch Sử trước khi thuê nài ngựa.',
       );
     }
     return RefreshIndicator(
@@ -246,16 +245,47 @@ class _JockeySearchSheetState extends State<_JockeySearchSheet> {
                           itemCount: _jockeys!.length,
                           itemBuilder: (ctx, idx) {
                             final jockey = _jockeys![idx];
-                            final user = jockey['user'] ?? jockey;
-                            final jId = user['id'] ?? user['_id'] ?? jockey['userId'] ?? jockey['_id'];
-                            final name = user['fullName'] ?? user['name'] ?? 'Không rõ tên';
+                            // API returns: {_id, id, userId, age, experience, winRate, status...}
+                            // 'user' may be populated or userId may be object
+                            final jId = (jockey['_id'] ?? jockey['id'] ?? '').toString();
+                            
+                            // Name: from nested user object, or userId object, or fallback
+                            String name = 'Nài ngựa';
+                            final userObj = jockey['user'] ?? jockey['userId'];
+                            if (userObj is Map) {
+                              name = (userObj['fullName'] ?? userObj['name'] ?? 'Nài ngựa').toString();
+                            } else if (jockey['fullName'] != null) {
+                              name = jockey['fullName'].toString();
+                            } else if (jockey['name'] != null) {
+                              name = jockey['name'].toString();
+                            }
+                            
+                            // Experience info
+                            final exp = jockey['experience'];
+                            final winRate = jockey['winRate'];
+                            final subtitle = exp != null 
+                              ? '$exp năm kinh nghiệm${winRate != null ? ' · Win rate: ${(winRate * 100).toStringAsFixed(0)}%' : ''}'
+                              : winRate != null ? 'Win rate: ${(winRate * 100).toStringAsFixed(0)}%' : 'Kỵ sĩ chuyên nghiệp';
+                            
                             return ListTile(
-                              leading: const CircleAvatar(child: Icon(Icons.person)),
-                              title: Text(name),
-                              subtitle: Text('Weight: ${jockey['weight'] ?? '?'} kg'),
+                              leading: CircleAvatar(
+                                backgroundColor: context.colors.primary.withValues(alpha: 0.15),
+                                child: Text(
+                                  name.isNotEmpty ? name[0].toUpperCase() : 'J',
+                                  style: TextStyle(color: context.colors.primary, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              title: Text(name, style: context.typography.body.copyWith(fontWeight: FontWeight.w600)),
+                              subtitle: Text(subtitle, style: context.typography.caption),
                               trailing: ElevatedButton(
-                                onPressed: () => _inviteJockey(jId.toString()),
-                                child: const Text('Mời'),
+                                onPressed: () => _inviteJockey(jId),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: context.colors.primary,
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  minimumSize: Size.zero,
+                                ),
+                                child: const Text('Mời', style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold)),
                               ),
                             );
                           },

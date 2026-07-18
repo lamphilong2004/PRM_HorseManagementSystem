@@ -70,16 +70,16 @@ class _OwnerHorsesTabState extends State<OwnerHorsesTab> {
     final colorCtrl = TextEditingController(text: horse?.color);
     final genderCtrl = TextEditingController(text: horse?.gender);
     final originCtrl = TextEditingController(text: horse?.origin);
-    final healthCertUrlCtrl = TextEditingController(text: horse?.healthCertUrl);
     bool isLoading = false;
 
-    Widget buildTextField(TextEditingController controller, String label, {TextInputType? keyboardType}) {
+    Widget buildTextField(TextEditingController controller, String label, {TextInputType? keyboardType, List<TextInputFormatter>? inputFormatters}) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: TextField(
           controller: controller,
           style: context.typography.body,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           decoration: InputDecoration(
             labelText: label,
             labelStyle: context.typography.caption,
@@ -134,12 +134,11 @@ class _OwnerHorsesTabState extends State<OwnerHorsesTab> {
                       children: [
                         buildTextField(nameCtrl, 'Tên chiến mã'),
                         buildTextField(breedCtrl, 'Giống ngựa'),
-                        buildTextField(ageCtrl, 'Tuổi', keyboardType: TextInputType.number),
-                        buildTextField(weightCtrl, 'Cân nặng (kg)', keyboardType: TextInputType.number),
+                        buildTextField(ageCtrl, 'Tuổi'),
+                        buildTextField(weightCtrl, 'Cân nặng (kg)'),
                         buildTextField(colorCtrl, 'Màu sắc'),
                         buildTextField(genderCtrl, 'Giới tính'),
                         buildTextField(originCtrl, 'Xuất xứ'),
-                        buildTextField(healthCertUrlCtrl, 'Link giấy khám sức khỏe'),
                       ],
                     ),
                   ),
@@ -161,9 +160,9 @@ class _OwnerHorsesTabState extends State<OwnerHorsesTab> {
                               'age': int.tryParse(ageCtrl.text.trim()) ?? 0,
                               'weight': double.tryParse(weightCtrl.text.trim()) ?? 0.0,
                               'color': colorCtrl.text.trim(),
-                              'gender': genderCtrl.text.trim(),
+                              'gender': genderCtrl.text.trim().toUpperCase(),
                               'origin': originCtrl.text.trim(),
-                              'healthCertUrl': healthCertUrlCtrl.text.trim(),
+                              'healthCertUrl': 'https://example.com/no-cert-provided.pdf',
                             };
                             if (isEdit) {
                               await widget.api.updateHorse(horse.id, data);
@@ -174,7 +173,13 @@ class _OwnerHorsesTabState extends State<OwnerHorsesTab> {
                               HapticFeedback.lightImpact();
                               Navigator.pop(ctx);
                             }
-                            if (mounted) _reload();
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(isEdit ? 'Cập nhật thành công!' : 'Đăng ký ngựa thành công!')),
+                              );
+                              await Future.delayed(const Duration(milliseconds: 300));
+                              _reload();
+                            }
                           } catch (e) {
                             setDialogState(() => isLoading = false);
                             if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Lỗi: $e')));

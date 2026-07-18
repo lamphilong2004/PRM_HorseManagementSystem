@@ -156,7 +156,6 @@ class _RaceCard extends StatelessWidget {
                 ),
               ],
             ),
-
           ],
         ),
       ),
