@@ -178,17 +178,90 @@ class Race {
 }
 
 class Horse {
-  const Horse({required this.id, required this.name, required this.ownerId});
+  const Horse({
+    required this.id, 
+    required this.name, 
+    required this.ownerId,
+    this.age,
+    this.breed,
+    this.weight,
+    this.color,
+    this.gender,
+    this.origin,
+    this.healthCertUrl,
+    this.wins,
+    this.losses,
+    this.totalRaces,
+  });
 
   final String id;
   final String name;
   final String ownerId;
+  final int? age;
+  final String? breed;
+  final int? weight;
+  final String? color;
+  final String? gender;
+  final String? origin;
+  final String? healthCertUrl;
+  final int? wins;
+  final int? losses;
+  final int? totalRaces;
 
   factory Horse.fromDirect(Map<String, dynamic> json) => Horse(
     id: _stringValue(json['_id'] ?? json['id']),
     name: _stringValue(json['name']),
-    ownerId: _stringValue(json['ownerId']),
+    ownerId: _stringValue(json['ownerId'] ?? (json['owner'] is Map ? json['owner']['_id'] : json['owner'])),
+    age: json['age'] is int ? json['age'] : int.tryParse(_stringValue(json['age'])),
+    breed: json['breed']?.toString(),
+    weight: json['weight'] is int ? json['weight'] : int.tryParse(_stringValue(json['weight'])),
+    color: json['color']?.toString(),
+    gender: json['gender']?.toString(),
+    origin: json['origin']?.toString(),
+    healthCertUrl: json['healthCertUrl']?.toString(),
+    wins: json['stats']?['wins'] is int ? json['stats']['wins'] : null,
+    losses: json['stats']?['losses'] is int ? json['stats']['losses'] : null,
+    totalRaces: json['stats']?['totalRaces'] is int ? json['stats']['totalRaces'] : null,
   );
+}
+
+class Registration {
+  const Registration({
+    required this.id,
+    required this.raceId,
+    required this.horseId,
+    required this.status,
+    this.raceName,
+    this.horseName,
+    this.jockeyName,
+    this.rejectionReason,
+  });
+
+  final String id;
+  final String raceId;
+  final String horseId;
+  final String status;
+  final String? raceName;
+  final String? horseName;
+  final String? jockeyName;
+  final String? rejectionReason;
+
+  factory Registration.fromApi(Map<String, dynamic> json) {
+    final race = json['raceId'] ?? json['race'] ?? json['tournamentId'];
+    final horse = json['horseId'] ?? json['horse'];
+    final jockey = json['jockeyId'] ?? json['jockey'];
+
+    return Registration(
+      id: _stringValue(json['_id'] ?? json['id'] ?? json['registrationId']),
+      raceId: race is Map ? _stringValue(race['_id'] ?? race['id']) : _stringValue(race),
+      horseId: horse is Map ? _stringValue(horse['_id'] ?? horse['id']) : _stringValue(horse),
+      status: _stringValue(json['status']),
+      raceName: race is Map ? _stringValue(race['name']) : null,
+      horseName: horse is Map ? _stringValue(horse['name']) : null,
+      jockeyName: jockey is Map ? (jockey['user'] is Map ? _stringValue(jockey['user']['fullName']) : _stringValue(jockey['fullName'])) : null,
+      rejectionReason: json['rejectionReason']?.toString(),
+    );
+  }
 }
 
 class Invite {

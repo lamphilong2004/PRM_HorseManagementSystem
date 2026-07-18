@@ -59,6 +59,14 @@ class ApiClient {
     return _send(() => dio.patch<dynamic>(path, data: body));
   }
 
+  Future<Response<dynamic>> put(String path, Object body) {
+    return _send(() => dio.put<dynamic>(path, data: body));
+  }
+
+  Future<Response<dynamic>> delete(String path) {
+    return _send(() => dio.delete<dynamic>(path));
+  }
+
   Future<Response<dynamic>> _send(
     Future<Response<dynamic>> Function() request,
   ) async {

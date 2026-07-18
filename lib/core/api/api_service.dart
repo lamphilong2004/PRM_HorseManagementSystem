@@ -73,6 +73,68 @@ class ApiService {
     return response.data;
   }
 
+  Future<dynamic> updateHorse(String id, Map<String, dynamic> data) async {
+    final response = await _client.put('/horses/$id', data);
+    return response.data;
+  }
+
+  Future<dynamic> deleteHorse(String id) async {
+    final response = await _client.delete('/horses/$id');
+    return response.data;
+  }
+
+  Future<List<Registration>> getOwnerRegistrations() async {
+    try {
+      final response = await _client.get('/registrations/me');
+      return _extractList(response.data, null).map(Registration.fromApi).toList();
+    } catch (e) {
+      // Fallback if /registrations/me doesn't exist but registrations does
+      final response = await _client.get('/registrations');
+      return _extractList(response.data, null).map(Registration.fromApi).toList();
+    }
+  }
+
+  Future<dynamic> confirmRaceParticipation(String registrationId) async {
+    final response = await _client.post('/registrations/$registrationId/confirm', {});
+    return response.data;
+  }
+
+
+  Future<dynamic> sendJockeyInvitation(String jockeyId, String horseId, String raceId, {String? registrationId}) async {
+    try {
+      final response = await _client.post('/horses/$horseId/invitations', {
+        'jockeyId': jockeyId,
+        'raceId': raceId,
+        'message': 'Mời bạn cưỡi ngựa của tôi',
+      });
+      return response.data;
+    } catch (e) {
+      if (registrationId != null) {
+        // Fallback to registrationId if raceId fails (e.g. 404 Race not found)
+        try {
+          final res2 = await _client.post('/horses/$horseId/invitations', {
+            'jockeyId': jockeyId,
+            'raceId': registrationId,
+            'message': 'Mời bạn cưỡi ngựa của tôi',
+          });
+          return res2.data;
+        } catch (_) {
+          rethrow;
+        }
+      }
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> searchJockeys(String? query) async {
+    final q = query != null && query.isNotEmpty ? '?search=$query' : '';
+    final response = await _client.get('/jockeys$q');
+    var list = _extractList(response.data, 'jockeys');
+    if (list.isEmpty) list = _extractList(response.data, 'data');
+    if (list.isEmpty) list = _extractList(response.data, null);
+    return list;
+  }
+
   Future<List<Map<String, dynamic>>> getAvailableJockeys() async {
     final response = await _client.get('/jockeys');
     var list = _extractList(response.data, 'jockeys');
